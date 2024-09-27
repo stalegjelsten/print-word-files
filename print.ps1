@@ -25,6 +25,7 @@ if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK)
 
   $fileCounter = 0
   $totalFiles = $files.Count
+  $failedFiles = @()
 
   # Loop through each file and print it
   foreach ($file in $files)
@@ -49,6 +50,7 @@ if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK)
     {
 
       Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name): $_"
+      $failedFiles += $file.FullName
 
     }
 
@@ -61,7 +63,16 @@ if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK)
   [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wordApp) | Out-Null
   [System.GC]::Collect()
   [System.GC]::WaitForPendingFinalizers()
+
+  if ($failedFiles.Count -gt 0) {
+    Write-Host "Følgende filer ble ikke skrevet ut:"
+    $failedFiles | ForEach-Object { Write-Host $_ }
+  } else {
+    Write-Host "$totalFiles dokumenter skrevet ut."
+  }
+
+  Read-Host "Trykk Enter for å avslutte programmet."
 } else
 {
-  Write-Host "Ingen mappe valgt. Lukker programmet."
+  Read-Host "Ingen mappe valgt. Trykk Enter for å avslutte programmet."
 }
