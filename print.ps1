@@ -1,9 +1,9 @@
-Add-Type -AssemblyName System.Windows.Forms
-
 $printer = "\\TDCSOM30\Sikker_UtskriftCS"
 Write-Host "Dette programmet skriver ut *alle* Word filer i mappen du velger."
 Write-Host "Printeren som er valgt er: $printer"
-Write-Host "Du kan bytte til en annen printer ved å redigere linje 3 i denne fila."
+Write-Host "Du kan bytte til en annen printer ved å redigere linje 1 i denne fila."
+
+Add-Type -AssemblyName System.Windows.Forms
 
 # Create a new folder browser dialog
 $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
