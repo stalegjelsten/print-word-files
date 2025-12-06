@@ -2,7 +2,7 @@
 
 ## Hensikt
 
-Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelser fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk.
+Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelser fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk. Programmet legger automatisk til navn på eleven i toppteksten og sidetall i bunnteksten på dokumentene.
 
 ## Hva programmet gjør
 
@@ -28,10 +28,14 @@ Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
 
 ### Steg 1: Last ned besvarelser fra itslearning
 
-1. Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra
-2. Gå til **Vurdering** for oppgaven
-3. **Merk alle elevene** du vil skrive ut besvarelser for (huk av øverst for å velge alle)
-4. Klikk på **"Last ned filer"** eller **"Download files"** (kan være en nedlastingsknapp eller i en meny)
+Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra
+
+![Nedlasting av besvarelser fra itslearning](docs/assets/itslearning-download-answers.png)
+
+1. Vis kun elevene som har levert oppgaven ved å velge **Vis:** **Levert**
+2. **Merk alle elevene** du vil skrive ut besvarelser for (huk av øverst for å velge alle)
+3. Klikk på **Handlinger** 
+4. **"Last ned besvarelser"** 
 5. En zip-fil lastes ned til datamaskinen din (vanligvis i Nedlastinger-mappen)
 
 ### Steg 2: Kjør utskriftsprogrammet
@@ -39,13 +43,11 @@ Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
 1. Høyreklikk på `print.ps1` og velg **"Kjør med PowerShell"** eller **"Run with PowerShell"**
 2. Et vindu åpnes. Les informasjonen som vises
 3. Det åpnes automatisk et vindu hvor du kan velge enten:
-   - **Zip-filen** du lastet ned fra itslearning (anbefalt - enklest!)
-   - **En mappe** du har pakket ut fra zip-filen
+   - **Zip-filen** du lastet ned fra itslearning (anbefalt)
+   - **En mappe** som inneholder dokumenter
 4. Velg filen/mappen og klikk OK
 5. Programmet skriver nå ut alle dokumenter og bilder
 6. Når det er ferdig, trykk Enter for å lukke vinduet
-
-**Tips:** Du trenger IKKE å pakke ut zip-filen først! Programmet kan lese zip-filer direkte.
 
 ## Krav
 
@@ -63,7 +65,7 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 - **Linje 9** (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde i centimeter (standard: 17.0 cm)
 - **Linje 10** (`$CONFIG_PRINTER`): Endre hvilken printer som skal brukes
 
-**Standard printer er:** "\\TDCSOM30\Sikker_UtskriftCS"
+**Standard printer er:** `\\TDCSOM30\Sikker_UtskriftCS`
 
 ## Hva gjør programmet?
 
