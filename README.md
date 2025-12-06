@@ -14,8 +14,8 @@ Dette programmet skriver ut alle dokumenter og bilder i en mappe (eller zip-fil)
 - Tekstfiler (.txt)
 
 **Viktig:** Originaldokumentene dine endres IKKE. Før utskriften starter får du velge om du vil legge til følgende på utskriften:
-- **Mappenavn** øverst (når du laster ned fra itslearning er dette elevens navn)
-- **Sidenummer** nederst (format: "Side 1 av 5")
+- **Elevens navn** øverst (mappenavnet fra zip-filen)
+- **Sidenummer** nederst (format: "Side 1 av 5" - viser nåværende side og totalt antall sider)
 
 Standard er at topptekst og bunntekst legges til (trykk bare Enter), men du kan velge å hoppe over dette ved å skrive 'n'.
 

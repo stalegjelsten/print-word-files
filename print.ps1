@@ -57,6 +57,8 @@ Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
 Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
 Write-Host ""
+Write-Host "Tips: Du kan velge en zip-fil direkte fra itslearning uten å pakke den ut først!"
+Write-Host ""
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -112,29 +114,35 @@ function Add-FolderNameToHeader {
 
     # Legg til sidenummer i bunntekst (Side X av Y)
     $footer = $section.Footers.Item(1)
+    $footer.Range.Text = ""
 
-    # Word-konstanter for felt
-    $wdFieldPage = 33      # wdFieldPage - nåværende sidenummer
-    $wdFieldNumPages = 26  # wdFieldNumPages - totalt antall sider
+    # Word-konstanter for felttyper
+    $wdFieldPage = 33      # Nåværende sidenummer
+    $wdFieldNumPages = 26  # Totalt antall sider
 
-    # Bygg bunntekst med sidenummerering
-    $footer.Range.Text = "Side "
-    $footer.Range.Collapse(0)  # Flytt til slutten av teksten (wdCollapseEnd = 0)
-
-    # Legg til felt for nåværende sidenummer
-    $footer.Range.Fields.Add($footer.Range, $wdFieldPage) | Out-Null
-    $footer.Range.Collapse(0)
-
-    # Legg til " av "
-    $footer.Range.InsertAfter(" av ")
-    $footer.Range.Collapse(0)
-
-    # Legg til felt for totalt antall sider
-    $footer.Range.Fields.Add($footer.Range, $wdFieldNumPages) | Out-Null
-
-    # Formater bunntekst
+    # Sett formatering på bunntekst
+    $footer.Range.ParagraphFormat.Alignment = 1  # Midtstill
     $footer.Range.Font.Size = 10
-    $footer.Range.ParagraphFormat.Alignment = 1  # Midtstill (wdAlignParagraphCenter = 1)
+
+    # Bygg bunntekst: "Side X av Y"
+    # Vi bruker Duplicate for å lage kopier av Range-objektet slik at
+    # vi kan jobbe med dem uavhengig av hverandre
+    $footer.Range.InsertBefore("Side ")
+
+    $tempRange = $footer.Range.Duplicate
+    $tempRange.Collapse(0)  # Flytt til slutten
+    $tempRange.Fields.Add($tempRange, $wdFieldPage, "", $false) | Out-Null
+
+    $tempRange = $footer.Range.Duplicate
+    $tempRange.Collapse(0)
+    $tempRange.InsertAfter(" av ")
+
+    $tempRange = $footer.Range.Duplicate
+    $tempRange.Collapse(0)
+    $tempRange.Fields.Add($tempRange, $wdFieldNumPages, "", $false) | Out-Null
+
+    # Oppdater feltene slik at de vises riktig
+    $footer.Range.Fields.Update() | Out-Null
   }
 }
 
