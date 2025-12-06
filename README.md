@@ -1,23 +1,51 @@
 # Skriv ut dokumenter automatisk
 
-Dette programmet skriver ut alle dokumenter og bilder i en mappe og alle undermapper automatisk. Programmet støtter:
+## Hensikt
+
+Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelser fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk.
+
+## Hva programmet gjør
+
+Dette programmet skriver ut alle dokumenter og bilder i en mappe (eller zip-fil) og alle undermapper automatisk. Programmet støtter:
 - Word-filer (.docx)
 - PDF-filer (.pdf)
 - HTML-filer (.html, .htm)
 - Bildefiler (.jpg, .jpeg, .png, .gif, .bmp)
 - Tekstfiler (.txt)
 
-**Viktig:** Originaldokumentene dine endres IKKE. Programmet legger kun til mappenavnet øverst på utskriften, slik at du vet hvilken mappe dokumentet kom fra.
+**Viktig:** Originaldokumentene dine endres IKKE. Programmet legger kun til følgende på utskriften:
+- **Mappenavn** øverst (slik at du vet hvilken mappe dokumentet kom fra)
+- **Sidenummer** nederst (format: "Side 1 av 5")
 
 ## Hvordan bruke programmet
 
-1. Lagre filen `print.ps1` et sted på datamaskinen din (for eksempel på Skrivebordet)
-2. Høyreklikk på `print.ps1` og velg **"Kjør med PowerShell"** eller **"Run with PowerShell"**
-3. Et vindu åpnes. Les informasjonen som vises
-4. Det åpnes automatisk et vindu hvor du kan velge hvilken mappe du vil skrive ut fra
-5. Velg mappen og klikk OK
-6. Programmet skriver nå ut alle dokumenter og bilder i mappen og alle undermapper
-7. Når det er ferdig, trykk Enter for å lukke vinduet
+### Steg 0: Last ned programmet
+
+Last ned `print.ps1` fra GitHub:
+- **[Last ned print.ps1](https://raw.githubusercontent.com/stalegjelsten/print-word-files/main/print.ps1)** (høyreklikk og velg "Lagre lenke som..." eller "Save link as...")
+
+Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
+
+### Steg 1: Last ned besvarelser fra itslearning
+
+1. Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra
+2. Gå til **Vurdering** for oppgaven
+3. **Merk alle elevene** du vil skrive ut besvarelser for (huk av øverst for å velge alle)
+4. Klikk på **"Last ned filer"** eller **"Download files"** (kan være en nedlastingsknapp eller i en meny)
+5. En zip-fil lastes ned til datamaskinen din (vanligvis i Nedlastinger-mappen)
+
+### Steg 2: Kjør utskriftsprogrammet
+
+1. Høyreklikk på `print.ps1` og velg **"Kjør med PowerShell"** eller **"Run with PowerShell"**
+2. Et vindu åpnes. Les informasjonen som vises
+3. Det åpnes automatisk et vindu hvor du kan velge enten:
+   - **Zip-filen** du lastet ned fra itslearning (anbefalt - enklest!)
+   - **En mappe** du har pakket ut fra zip-filen
+4. Velg filen/mappen og klikk OK
+5. Programmet skriver nå ut alle dokumenter og bilder
+6. Når det er ferdig, trykk Enter for å lukke vinduet
+
+**Tips:** Du trenger IKKE å pakke ut zip-filen først! Programmet kan lese zip-filer direkte.
 
 ## Krav
 
@@ -31,17 +59,18 @@ Hvis du ikke har disse programmene installert, vil programmet spørre om du vil 
 
 Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse linjene øverst i filen:
 
-- **Linje 8** (`$CONFIG_MARGIN_CM`): Endre sidemarger (i centimeter)
-- **Linje 9** (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde (i centimeter)
+- **Linje 8** (`$CONFIG_MARGIN_CM`): Endre sidemarger i centimeter (standard: 2.0 cm)
+- **Linje 9** (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde i centimeter (standard: 17.0 cm)
 - **Linje 10** (`$CONFIG_PRINTER`): Endre hvilken printer som skal brukes
 
-**Standard printer er:** "Microsoft Print to PDF" (lagrer som PDF i stedet for å skrive ut på papir)
+**Standard printer er:** "\\TDCSOM30\Sikker_UtskriftCS"
 
 ## Hva gjør programmet?
 
-- **Word, HTML og bilder:** Programmet legger til mappenavnet øverst på hver side, slik at du vet hvilken mappe filen kom fra
-- **PDF-filer:** Skrives ut som de er (uten mappenavn, siden PDF-filer er vanskeligere å endre)
-- **Bilder og tekstfiler:** Programmet lager en midlertidig HTML-fil som viser alle bildene og tekstene fra hver mappe samlet, og skriver så ut denne. Når utskriften er ferdig, slettes den midlertidige filen automatisk
+- **Word-dokumenter:** Programmet legger til mappenavnet øverst på hver side og sidenummerering nederst ("Side 1 av 5")
+- **HTML-filer:** Programmet legger til mappenavnet øverst på hver side og sidenummerering nederst
+- **PDF-filer:** Skrives ut som de er (uten endringer, siden PDF-filer er vanskeligere å endre)
+- **Bilder og tekstfiler:** Programmet lager en midlertidig HTML-fil som viser alle bildene og tekstene fra hver mappe samlet, og skriver så ut denne med mappenavn og sidenummerering. Når utskriften er ferdig, slettes den midlertidige filen automatisk
 
 ## Feilsøking
 

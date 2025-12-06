@@ -5,9 +5,9 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 # ============================================================================
 # KONFIGURASJON - Endre disse verdiene for å tilpasse skriptet
 # ============================================================================
-$CONFIG_MARGIN_CM = 0.5        # Sidemarger i centimeter
-$CONFIG_IMAGE_WIDTH_CM = 19.0  # Maksimal bildebredde i centimeter
-$CONFIG_PRINTER = "Microsoft Print to PDF"  # Printernavn
+$CONFIG_MARGIN_CM = 2.0        # Sidemarger i centimeter (standard er 2.0 cm)
+$CONFIG_IMAGE_WIDTH_CM = 17.0  # Maksimal bildebredde i centimeter
+$CONFIG_PRINTER = "\\TDCSOM30\Sikker_UtskriftCS"  # Printernavn
 
 # ============================================================================
 # SKRIPT FOR UTSKRIFT AV WORD, PDF, HTML FILER OG BILDER
@@ -53,12 +53,16 @@ $CONFIG_PRINTER = "Microsoft Print to PDF"  # Printernavn
 #
 # ============================================================================
 
-Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i mappen du velger."
+Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i mappen eller zip-filen du velger."
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
-Write-Host "Du kan bytte til en annen printer ved å redigere linje 9 i denne fila."
+Write-Host "Du kan bytte til en annen printer ved å redigere linje 10 i denne fila."
+Write-Host ""
+Write-Host "Tips: Du kan velge en zip-fil direkte fra itslearning uten å pakke den ut først!"
+Write-Host ""
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # Funksjon for å hente bildedimensjoner
 function Get-ImageDimensions {
@@ -77,7 +81,7 @@ function Get-ImageDimensions {
   }
 }
 
-# Funksjon for å legge til mappenavn i topptekst
+# Funksjon for å legge til mappenavn i topptekst og sidenummer i bunntekst
 function Add-FolderNameToHeader {
   param (
     [object]$doc,
@@ -107,6 +111,32 @@ function Add-FolderNameToHeader {
       $header.Range.Font.Bold = $true
       $header.Range.ParagraphFormat.Alignment = 1
     }
+
+    # Legg til sidenummer i bunntekst (Side X av Y)
+    $footer = $section.Footers.Item(1)
+
+    # Word-konstanter for felt
+    $wdFieldPage = 33      # wdFieldPage - nåværende sidenummer
+    $wdFieldNumPages = 26  # wdFieldNumPages - totalt antall sider
+
+    # Bygg bunntekst med sidenummerering
+    $footer.Range.Text = "Side "
+    $footer.Range.Collapse(0)  # Flytt til slutten av teksten (wdCollapseEnd = 0)
+
+    # Legg til felt for nåværende sidenummer
+    $footer.Range.Fields.Add($footer.Range, $wdFieldPage) | Out-Null
+    $footer.Range.Collapse(0)
+
+    # Legg til " av "
+    $footer.Range.InsertAfter(" av ")
+    $footer.Range.Collapse(0)
+
+    # Legg til felt for totalt antall sider
+    $footer.Range.Fields.Add($footer.Range, $wdFieldNumPages) | Out-Null
+
+    # Formater bunntekst
+    $footer.Range.Font.Size = 10
+    $footer.Range.ParagraphFormat.Alignment = 1  # Midtstill (wdAlignParagraphCenter = 1)
   }
 }
 
@@ -157,25 +187,75 @@ if ($adobeReaderPath -eq $null) {
   }
 }
 
-# Opprett en mappevelger-dialog
-$folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
+# Spør brukeren om de vil velge en zip-fil eller en mappe
+$result = [System.Windows.Forms.MessageBox]::Show(
+  "Vil du velge en ZIP-fil fra itslearning?`n`n" +
+  "Klikk JA for å velge en zip-fil`n" +
+  "Klikk NEI for å velge en mappe",
+  "Velg filtype",
+  [System.Windows.Forms.MessageBoxButtons]::YesNoCancel,
+  [System.Windows.Forms.MessageBoxIcon]::Question
+)
 
-# Vis dialogen og få resultatet
-$dialogResult = $folderBrowser.ShowDialog()
+$selectedPath = $null
+$isZipFile = $false
+$tempExtractPath = $null
 
-# Hvis brukeren klikket OK
-if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK)
+if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
+  # Brukeren vil velge en zip-fil
+  $fileDialog = New-Object System.Windows.Forms.OpenFileDialog
+  $fileDialog.Filter = "Zip-filer (*.zip)|*.zip"
+  $fileDialog.Title = "Velg zip-fil fra itslearning"
+
+  if ($fileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+    $zipFilePath = $fileDialog.FileName
+    $isZipFile = $true
+
+    # Opprett en midlertidig mappe for å pakke ut zip-filen
+    $tempExtractPath = Join-Path $env:TEMP "PrintScript_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+
+    Write-Host "Pakker ut zip-fil til midlertidig mappe..."
+    Write-Host "Midlertidig mappe: $tempExtractPath"
+
+    try {
+      # Pakk ut zip-filen
+      [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFilePath, $tempExtractPath)
+      $selectedPath = $tempExtractPath
+      Write-Host "Zip-fil pakket ut!"
+    } catch {
+      Write-Host "FEIL: Kunne ikke pakke ut zip-filen: $_"
+      Read-Host "Trykk Enter for å avslutte"
+      exit
+    }
+  }
+} elseif ($result -eq [System.Windows.Forms.DialogResult]::No) {
+  # Brukeren vil velge en mappe
+  $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
+  $folderBrowser.Description = "Velg mappen med filer du vil skrive ut"
+
+  if ($folderBrowser.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+    $selectedPath = $folderBrowser.SelectedPath
+  }
+} else {
+  # Brukeren kansellerte
+  Read-Host "Avbrutt. Trykk Enter for å avslutte"
+  exit
+}
+
+# Hvis brukeren klikket OK (enten for fil eller mappe)
+if ($selectedPath -ne $null)
 {
-  $selectedPath = $folderBrowser.SelectedPath
 
   # Hent alle Word, PDF og HTML filer i valgt mappe og undermapper
-  $wordFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.docx"
-  $pdfFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.pdf"
-  $htmlFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.html","*.htm"
-  
-  # Hent alle bildefiler og tekstfiler
-  $imageFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.jpg","*.jpeg","*.png","*.gif","*.bmp"
-  $textFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.txt"
+  # VIKTIG: Vi filtrerer bort filer som starter med punktum (.) siden disse ofte er
+  # sikkerhetskopier eller skjulte systemfiler (f.eks. .~lock.dokument.docx)
+  $wordFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.docx" | Where-Object { -not $_.Name.StartsWith(".") }
+  $pdfFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.pdf" | Where-Object { -not $_.Name.StartsWith(".") }
+  $htmlFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.html","*.htm" | Where-Object { -not $_.Name.StartsWith(".") }
+
+  # Hent alle bildefiler og tekstfiler (hopp over filer som starter med .)
+  $imageFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.jpg","*.jpeg","*.png","*.gif","*.bmp" | Where-Object { -not $_.Name.StartsWith(".") }
+  $textFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.txt" | Where-Object { -not $_.Name.StartsWith(".") }
 
   # Generer kombinerte HTML-filer for mapper med bilder og/eller tekstfiler
   Write-Host "`nGenererer kombinerte HTML-filer for mapper med bilder og tekstfiler..."
@@ -557,8 +637,20 @@ if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK)
     }
   }
 
+  # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
+  if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
+    Write-Host "`nRydder opp midlertidig mappe..."
+    try {
+      Remove-Item -Path $tempExtractPath -Recurse -Force
+      Write-Host "Midlertidig mappe slettet."
+    } catch {
+      Write-Host "Kunne ikke slette midlertidig mappe: $tempExtractPath"
+      Write-Host "Du kan slette den manuelt hvis du vil."
+    }
+  }
+
   Read-Host "`nTrykk Enter for å avslutte programmet"
 } else
 {
-  Read-Host "Ingen mappe valgt. Trykk Enter for å avslutte programmet."
+  Read-Host "Ingen fil eller mappe valgt. Trykk Enter for å avslutte programmet."
 }
