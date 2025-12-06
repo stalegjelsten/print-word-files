@@ -1,8 +1,4 @@
-﻿# Fiks encoding for norske tegn (æ, ø, å)
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-# ============================================================================
+﻿# ============================================================================
 # KONFIGURASJON - Endre disse verdiene for å tilpasse skriptet
 # ============================================================================
 $CONFIG_MARGIN_CM = 2.0        # Sidemarger i centimeter (standard er 2.0 cm)
@@ -53,11 +49,13 @@ $CONFIG_PRINTER = "\\TDCSOM30\Sikker_UtskriftCS"  # Printernavn
 #
 # ============================================================================
 
+# Fiks encoding for norske tegn (æ, ø, å)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i mappen eller zip-filen du velger."
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
-Write-Host "Du kan bytte til en annen printer ved å redigere linje 10 i denne fila."
-Write-Host ""
-Write-Host "Tips: Du kan velge en zip-fil direkte fra itslearning uten å pakke den ut først!"
+Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
 Write-Host ""
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -499,6 +497,42 @@ if ($selectedPath -ne $null)
   $totalFiles = $allFiles.Count
   $failedFiles = @()
 
+  # Vis oversikt over filer som skal skrives ut
+  Write-Host "`n============================================================"
+  Write-Host "OVERSIKT OVER FILER SOM SKAL SKRIVES UT ($totalFiles filer)"
+  Write-Host "============================================================"
+
+  Write-Host "`nWord-filer ($($wordFiles.Count)):"
+  foreach ($file in $wordFiles) {
+    Write-Host "  - $($file.Name) [Mappe: $($file.Directory.Name)]"
+  }
+
+  Write-Host "`nPDF-filer ($($pdfFiles.Count)):"
+  foreach ($file in $pdfFiles) {
+    Write-Host "  - $($file.Name) [Mappe: $($file.Directory.Name)]"
+  }
+
+  Write-Host "`nHTML-filer ($($htmlFilesToPrint.Count)):"
+  foreach ($file in $htmlFilesToPrint) {
+    Write-Host "  - $($file.Name) [Mappe: $($file.Directory.Name)]"
+  }
+
+  Write-Host "`n============================================================"
+
+  # Spør om topptekst og bunntekst skal legges til
+  Write-Host "`nVil du legge til mappenavn i topptekst og sidenummer i bunntekst?"
+  Write-Host "(Dette gjelder kun for Word og HTML-filer, ikke PDF-filer)"
+  $addHeaderFooter = Read-Host "Trykk Enter for JA, eller skriv 'n' for NEI"
+
+  # Standard er ja (tom input eller noe annet enn 'n')
+  $shouldAddHeaderFooter = ($addHeaderFooter -ne "n" -and $addHeaderFooter -ne "N")
+
+  if ($shouldAddHeaderFooter) {
+    Write-Host "Legger til topptekst og bunntekst på utskriftene.`n"
+  } else {
+    Write-Host "Hopper over topptekst og bunntekst.`n"
+  }
+
   Write-Host "`nStarter utskrift av $totalFiles filer..."
 
   # Opprett Word-applikasjon for Word og HTML filer
@@ -532,8 +566,10 @@ if ($selectedPath -ne $null)
         # Håndter Word-dokumenter
         $doc = $wordApp.Documents.Open($file.FullName)
 
-        # Legg til mappenavn i topptekst og sett marger
-        Add-FolderNameToHeader -doc $doc -folderName $folderName
+        # Legg til mappenavn i topptekst og sett marger (hvis ønsket)
+        if ($shouldAddHeaderFooter) {
+          Add-FolderNameToHeader -doc $doc -folderName $folderName
+        }
 
         # Skriv ut dokumentet
         $doc.PrintOut()
@@ -585,8 +621,10 @@ if ($selectedPath -ne $null)
         # Håndter HTML-filer gjennom Word
         $doc = $wordApp.Documents.Open($file.FullName)
 
-        # Legg til mappenavn i topptekst og sett marger
-        Add-FolderNameToHeader -doc $doc -folderName $folderName
+        # Legg til mappenavn i topptekst og sett marger (hvis ønsket)
+        if ($shouldAddHeaderFooter) {
+          Add-FolderNameToHeader -doc $doc -folderName $folderName
+        }
 
         # Skriv ut dokumentet
         $doc.PrintOut()

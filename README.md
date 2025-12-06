@@ -2,7 +2,7 @@
 
 ## Hensikt
 
-Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelser fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk. Programmet legger automatisk til navn på eleven i toppteksten og sidetall i bunnteksten på dokumentene.
+Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelser fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk. Programmet kan legge til elevens navn i toppteksten og sidetall i bunnteksten på dokumentene hvis du ønsker det.
 
 ## Hva programmet gjør
 
@@ -13,9 +13,11 @@ Dette programmet skriver ut alle dokumenter og bilder i en mappe (eller zip-fil)
 - Bildefiler (.jpg, .jpeg, .png, .gif, .bmp)
 - Tekstfiler (.txt)
 
-**Viktig:** Originaldokumentene dine endres IKKE. Programmet legger kun til følgende på utskriften:
-- **Mappenavn** øverst (slik at du vet hvilken mappe dokumentet kom fra)
+**Viktig:** Originaldokumentene dine endres IKKE. Før utskriften starter får du velge om du vil legge til følgende på utskriften:
+- **Mappenavn** øverst (når du laster ned fra itslearning er dette elevens navn)
 - **Sidenummer** nederst (format: "Side 1 av 5")
+
+Standard er at topptekst og bunntekst legges til (trykk bare Enter), men du kan velge å hoppe over dette ved å skrive 'n'.
 
 ## Hvordan bruke programmet
 
@@ -46,8 +48,10 @@ Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra
    - **Zip-filen** du lastet ned fra itslearning (anbefalt)
    - **En mappe** som inneholder dokumenter
 4. Velg filen/mappen og klikk OK
-5. Programmet skriver nå ut alle dokumenter og bilder
-6. Når det er ferdig, trykk Enter for å lukke vinduet
+5. Programmet viser en oversikt over alle filer som skal skrives ut
+6. Du blir spurt om du vil legge til mappenavn og sidenummer på utskriftene (trykk Enter for ja, eller skriv 'n' for nei)
+7. Programmet skriver nå ut alle dokumenter og bilder
+8. Når det er ferdig, trykk Enter for å lukke vinduet
 
 ## Krav
 
@@ -61,18 +65,18 @@ Hvis du ikke har disse programmene installert, vil programmet spørre om du vil 
 
 Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse linjene øverst i filen:
 
-- **Linje 8** (`$CONFIG_MARGIN_CM`): Endre sidemarger i centimeter (standard: 2.0 cm)
-- **Linje 9** (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde i centimeter (standard: 17.0 cm)
-- **Linje 10** (`$CONFIG_PRINTER`): Endre hvilken printer som skal brukes
+- **Linje 4** (`$CONFIG_MARGIN_CM`): Endre sidemarger i centimeter (standard: 2.0 cm)
+- **Linje 5** (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde i centimeter (standard: 17.0 cm)
+- **Linje 6** (`$CONFIG_PRINTER`): Endre hvilken printer som skal brukes
 
 **Standard printer er:** `\\TDCSOM30\Sikker_UtskriftCS`
 
 ## Hva gjør programmet?
 
-- **Word-dokumenter:** Programmet legger til mappenavnet øverst på hver side og sidenummerering nederst ("Side 1 av 5")
-- **HTML-filer:** Programmet legger til mappenavnet øverst på hver side og sidenummerering nederst
+- **Word-dokumenter:** Hvis du velger det, legger programmet til mappenavnet (elevens navn) øverst på hver side og sidenummerering nederst ("Side 1 av 5")
+- **HTML-filer:** Hvis du velger det, legger programmet til mappenavnet (elevens navn) øverst på hver side og sidenummerering nederst
 - **PDF-filer:** Skrives ut som de er (uten endringer, siden PDF-filer er vanskeligere å endre)
-- **Bilder og tekstfiler:** Programmet lager en midlertidig HTML-fil som viser alle bildene og tekstene fra hver mappe samlet, og skriver så ut denne med mappenavn og sidenummerering. Når utskriften er ferdig, slettes den midlertidige filen automatisk
+- **Bilder og tekstfiler:** Programmet lager en midlertidig HTML-fil som viser alle bildene og tekstene fra hver mappe samlet, og skriver så ut denne (med elevens navn og sidenummerering hvis du velger det). Når utskriften er ferdig, slettes den midlertidige filen automatisk
 
 ## Feilsøking
 
