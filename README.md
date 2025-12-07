@@ -83,9 +83,9 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 
 Dette betyr at datamaskinen din blokkerer PowerShell-skript av sikkerhetsgrunner. Slik fikser du det:
 
-1. Høyreklikk på Start-knappen (nederst til venstre på skjermen)
-2. Velg "Windows PowerShell (administrator)" eller "Terminal (administrator)"
-3. Når det åpner seg et vindu med hvit eller blå tekst, skriv inn følgende og trykk Enter:
+1. Trykk på Start-knappen og søk etter "PowerShell"
+2. Klikk på "Windows PowerShell" (du trenger IKKE å kjøre som administrator)
+3. Når det åpner seg et vindu med blå bakgrunn, skriv inn følgende og trykk Enter:
    ```
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```

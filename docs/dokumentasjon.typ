@@ -1,3 +1,4 @@
+
 #set document(
   title: "Skriv ut dokumenter automatisk",
   author: "Ståle Gjelsten",
@@ -16,11 +17,38 @@
 
 #let kbd(body) = text(font: "Libertinus Keyboard")[#body]
 
+#show raw.where(block: false): it => box(
+  it,
+  fill: black.lighten(95%),
+  inset: (x: 1pt, y: 0pt),
+  outset: (y: 3pt),
+  radius: 2pt,
+)
+
+#show raw.where(block: true): it => block(
+  it,
+  fill: black.lighten(95%),
+  inset: 10pt,
+  radius: 4pt,
+  width: 100%,
+)
+
+
 #set par(justify: true)
 
 //#set heading(numbering: "1.")
 
-#show link: it => {underline(text(maroon.darken(40%), it), stroke: (dash: "dotted"))}
+#show link: it => {
+  underline(stroke: (paint: red.darken(80%), thickness: 1pt, dash: "dotted"), offset: 0.15em)[#text(fill: red.darken(80%))[#it]]
+  if type(it.dest) == type("hello") {
+    sym.wj
+    h(1.0pt)
+    sym.wj
+    super(box(height: 0.05em, text(size: 0.7em, fill: red.darken(80%))[#sym.arrow.tr]))
+  }
+}
+
+
 
 
 #align(center)[
@@ -65,7 +93,7 @@ PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en tekn
 
 == Steg 0: Last ned programmet
 
-#link("https://raw.githubusercontent.com/stalegjelsten/print-word-files/main/print.ps1")[Last ned print.ps1] (høyreklikk og velg "Lagre lenke som..." eller "Save link as...") fra GitHub.
+Last ned programmet #link("https://raw.githubusercontent.com/stalegjelsten/print-word-files/main/print.ps1")[*print.ps1*] (høyreklikk og velg "Lagre lenke som..." eller "Save link as...").
 
 Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
 
@@ -74,7 +102,7 @@ Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
 Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra.
 
 #figure(
-  image("assets/itslearning-download-answers.png", width: 100%),
+  image("assets/itslearning-download-answers.png", width: 60%),
   caption: [Nedlasting av besvarelser fra itslearning]
 )
 
@@ -122,12 +150,14 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 
 Dette betyr at datamaskinen din blokkerer PowerShell-skript av sikkerhetsgrunner. Slik fikser du det:
 
-+ Høyreklikk på Start-knappen (nederst til venstre på skjermen)
-+ Velg "Windows PowerShell (administrator)" eller "Terminal (administrator)"
-+ Når det åpner seg et vindu med hvit eller blå tekst, skriv inn følgende og trykk Enter:
++ Trykk på Start-knappen og søk etter "PowerShell"
++ Klikk på "Windows PowerShell"
++ Når det åpner seg et vindu med blå bakgrunn, skriv inn følgende og trykk Enter:
+
   ```powershell
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
   ```
+
 + Skriv `J` og trykk Enter når du får spørsmål
 + Du kan nå lukke dette vinduet og prøve å kjøre `print.ps1` på nytt
 
@@ -140,3 +170,8 @@ Installer #link("https://get.adobe.com/no/reader/")[Adobe Acrobat Reader].
 == Hvis Word- eller HTML-filer ikke skrives ut
 
 Kontroller at Microsoft Word er installert på datamaskinen.
+
+== Kontakt og lisens
+Programmet er utviklet av #link("https://github.com/stalegjelsten")[Ståle Gjelsten]. 
+
+Programmet er lisensiert med #link("https://opensource.org/license/MIT")[MIT-lisens], som betyr at det kan fritt brukes, endres og deles videre. Programmet leveres «som det er» uten garantier, slik det er vanlig for gratis programvare.
