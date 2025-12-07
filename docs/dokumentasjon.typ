@@ -20,7 +20,7 @@
 #show raw.where(block: false): it => box(
   it,
   fill: black.lighten(95%),
-  inset: (x: 1pt, y: 0pt),
+  inset: (x: 2pt, y: 0pt),
   outset: (y: 3pt),
   radius: 2pt,
 )
@@ -28,8 +28,8 @@
 #show raw.where(block: true): it => block(
   it,
   fill: black.lighten(95%),
-  inset: 10pt,
-  radius: 4pt,
+  inset: 8pt,
+  radius: 2pt,
   width: 100%,
 )
 
@@ -61,7 +61,7 @@
 
 = Hensikt
 
-Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelser fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk. Programmet kan legge til elevens navn i toppteksten og sidetall i bunnteksten på dokumentene hvis du ønsker det.
+Dette programmet er laget for å gjøre det enkelt for lærere å skrive ut alle elevbesvarelsene fra itslearning på én gang. I stedet for å åpne og skrive ut hver besvarelse manuelt, kan du bruke dette programmet til å skrive ut alt automatisk. Programmet kan legge til elevens navn i toppteksten og sidetall i bunnteksten på dokumentene hvis du ønsker det.
 
 = Hva programmet gjør
 
@@ -86,7 +86,7 @@ PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en tekn
   - *Elevens navn* øverst (mappenavnet fra zip-filen)
   - *Sidenummer* nederst (format: "Side 1 av 5")
 
-  Standard er å legge til topptekst og bunntekst (trykk bare #kbd[Enter]), men du kan velge å hoppe over dette ved å trykke #kbd[n]-tasten.
+  Standardinnstillngen legger til topptekst og bunntekst (tast #kbd[Enter]), men du kan velge å hoppe over dette ved å skrive #kbd[n] og taste #kbd[Enter].
 ]
 
 = Hvordan bruke programmet
@@ -99,17 +99,18 @@ Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
 
 == Steg 1: Last ned besvarelser fra itslearning
 
-Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra.
+Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra. 
 
 #figure(
   image("assets/itslearning-download-answers.png", width: 60%),
   caption: [Nedlasting av besvarelser fra itslearning]
-)
+)<itslearning>
 
-+ Vis kun elevene som har levert oppgaven ved å velge *Vis:* *Levert*
++ Vis kun elevene som har levert oppgaven ved å velge *Vis:* *Levert*. Se @itslearning.
 + *Merk alle elevene* du vil skrive ut besvarelser for (huk av øverst for å velge alle)
 + Klikk på *Handlinger*
 + *"Last ned besvarelser"*
++ Itslearning bruker litt tid på å samle alle besvarelsene til én fil. Trykk på *klikk her for å laste ned* når filene er klare.
 + En zip-fil lastes ned til datamaskinen din (vanligvis i Nedlastinger-mappen)
 
 == Steg 2: Kjør utskriftsprogrammet
@@ -121,9 +122,9 @@ Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra.
   - *En mappe* som inneholder dokumenter
 + Velg filen/mappen og klikk OK
 + Programmet viser en oversikt over alle filer som skal skrives ut
-+ Du blir spurt om du vil legge til mappenavn og sidenummer på utskriftene (trykk Enter for ja, eller skriv 'n' for nei)
++ Du blir spurt om du vil legge til mappenavn og sidenummer på utskriftene (tast #kbd[Enter] for ja, eller skriv #kbd[n] og tast #kbd[Enter] for nei)
 + Programmet skriver nå ut alle dokumenter og bilder
-+ Når det er ferdig, trykk Enter for å lukke vinduet
++ Når det er ferdig, tast #kbd[Enter] for å lukke vinduet
 
 = Krav
 
@@ -152,13 +153,13 @@ Dette betyr at datamaskinen din blokkerer PowerShell-skript av sikkerhetsgrunner
 
 + Trykk på Start-knappen og søk etter "PowerShell"
 + Klikk på "Windows PowerShell"
-+ Når det åpner seg et vindu med blå bakgrunn, skriv inn følgende og trykk Enter:
++ Når det åpner seg et vindu med blå bakgrunn, skriv inn følgende og tast deretter #kbd[Enter]:
 
   ```powershell
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
   ```
 
-+ Skriv `J` og trykk Enter når du får spørsmål
++ Skriv #kbd[J] og tast #kbd[Enter] når du får spørsmål
 + Du kan nå lukke dette vinduet og prøve å kjøre `print.ps1` på nytt
 
 _Dette trenger du bare å gjøre én gang på datamaskinen din._
@@ -171,7 +172,7 @@ Installer #link("https://get.adobe.com/no/reader/")[Adobe Acrobat Reader].
 
 Kontroller at Microsoft Word er installert på datamaskinen.
 
-== Kontakt og lisens
-Programmet er utviklet av #link("https://github.com/stalegjelsten")[Ståle Gjelsten]. 
+= Kontakt og lisens
+Programmet er utviklet av #link("https://github.com/stalegjelsten")[Ståle Gjelsten]. Funksjonene for å skrive ut PDF-filer, å kombinere HTML-filer og å legge til topp- og bunntekst er utviklet sammen med språkmodellen #link("https://www.anthropic.com/claude/sonnet")[Claude Sonnet 4.5 fra Anthropic]. 
 
-Programmet er lisensiert med #link("https://opensource.org/license/MIT")[MIT-lisens], som betyr at det kan fritt brukes, endres og deles videre. Programmet leveres «som det er» uten garantier, slik det er vanlig for gratis programvare.
+Programmet er lisensiert med #link("https://opensource.org/license/MIT")[MIT-lisens], som betyr at det kan fritt brukes, endres og deles videre. Programmet leveres "som det er", og uten noen form for garantier.
