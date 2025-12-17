@@ -632,8 +632,8 @@ if ($selectedPath -ne $null)
           Add-FolderNameToHeader -doc $doc -folderName $folderName
         }
 
-        # Skriv ut dokumentet
-        $doc.PrintOut()
+        # Skriv ut dokumentet (1 kopi)
+        $doc.PrintOut([ref]$false, [ref]$false, [ref]0, [ref]"", [ref]"", [ref]"", [ref]0, [ref]1)
 
         # Lukk dokumentet uten å lagre endringer
         $doc.Close([ref]$false)
@@ -687,8 +687,8 @@ if ($selectedPath -ne $null)
           Add-FolderNameToHeader -doc $doc -folderName $folderName
         }
 
-        # Skriv ut dokumentet
-        $doc.PrintOut()
+        # Skriv ut dokumentet (1 kopi)
+        $doc.PrintOut([ref]$false, [ref]$false, [ref]0, [ref]"", [ref]"", [ref]"", [ref]0, [ref]1)
 
         # Lukk dokumentet uten å lagre endringer
         $doc.Close([ref]$false)
@@ -745,6 +745,53 @@ if ($selectedPath -ne $null)
     } catch {
       Write-Host "Kunne ikke slette midlertidig mappe: $tempExtractPath"
       Write-Host "Du kan slette den manuelt hvis du vil."
+    }
+  }
+
+  # Sjekk om vi skal spørre om snarvei
+  $scriptPath = $PSCommandPath
+  $scriptDir = Split-Path $scriptPath
+  $noShortcutFile = Join-Path $scriptDir ".no-shortcut-prompt"
+  $desktopPath = [Environment]::GetFolderPath("Desktop")
+  $shortcutPath = Join-Path $desktopPath "Print fra itslearning.lnk"
+
+  # Spør bare om snarvei hvis:
+  # 1. Snarveien ikke allerede eksisterer OG
+  # 2. Brukeren ikke tidligere har sagt nei
+  if (-not (Test-Path $shortcutPath) -and -not (Test-Path $noShortcutFile)) {
+    Write-Host ""
+    $createShortcut = Read-Host "Vil du opprette en snarvei til dette skriptet på skrivebordet? (J/N)"
+
+    if ($createShortcut -eq "J" -or $createShortcut -eq "j") {
+      try {
+        # Opprett WScript Shell-objekt for å lage snarvei
+        $wshShell = New-Object -ComObject WScript.Shell
+        $shortcut = $wshShell.CreateShortcut($shortcutPath)
+
+        # Sett opp snarveien til å kjøre PowerShell med scriptet
+        $shortcut.TargetPath = "powershell.exe"
+        $shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$scriptPath`""
+        $shortcut.WorkingDirectory = $scriptDir
+        $shortcut.Description = "Skriv ut elevbesvarelser automatisk"
+        $shortcut.IconLocation = "powershell.exe,0"
+
+        # Lagre snarveien
+        $shortcut.Save()
+
+        Write-Host "Snarvei opprettet på skrivebordet: $shortcutPath"
+
+        # Rydd opp COM-objektet
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wshShell) | Out-Null
+      } catch {
+        Write-Host "Kunne ikke opprette snarvei: $_"
+      }
+    } else {
+      # Brukeren sa nei - opprett markørfil så vi ikke spør igjen
+      try {
+        "" | Out-File -FilePath $noShortcutFile -Encoding UTF8
+      } catch {
+        # Ikke kritisk hvis vi ikke kan opprette filen
+      }
     }
   }
 
