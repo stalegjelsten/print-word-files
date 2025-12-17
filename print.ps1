@@ -3,7 +3,7 @@
 # ============================================================================
 $CONFIG_MARGIN_CM = 2.0        # Sidemarger i centimeter (standard er 2.0 cm)
 $CONFIG_IMAGE_WIDTH_CM = 17.0  # Maksimal bildebredde i centimeter
-$CONFIG_PRINTER = "\\TDCSOM30\Sikker_UtskriftCS"  # Printernavn
+$CONFIG_PRINTER = "\\TDCSPRN30\Sikker_UtskriftCS"  # Printernavn
 
 # ============================================================================
 # SKRIPT FOR UTSKRIFT AV WORD, PDF, HTML FILER OG BILDER
@@ -53,16 +53,32 @@ $CONFIG_PRINTER = "\\TDCSOM30\Sikker_UtskriftCS"  # Printernavn
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+# Sjekk om skriptet kjører på Windows
+if (-not $IsWindows -and $null -ne $PSVersionTable.PSVersion.Major -and $PSVersionTable.PSVersion.Major -ge 6) {
+  # PowerShell Core 6+ har $IsWindows variabel
+  Write-Host "FEIL: Dette skriptet kan kun kjøres på Windows."
+  Write-Host "Skriptet krever funksjonalitet i Microsoft Word og Adobe Reader som kun er tilgjengelig i Windows."
+  Write-Host ""
+  Read-Host "Trykk Enter for å avslutte"
+  exit
+}
+
+# Last inn nødvendige Windows-assemblies
+try {
+  Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+  Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+  Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+} catch {
+  Write-Host "FEIL: Kunne ikke laste nødvendige Windows-komponenter."
+  Write-Host "Dette skriptet krever Windows 10 eller nyere."
+  Write-Host ""
+  Read-Host "Trykk Enter for å avslutte"
+  exit
+}
+
 Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i mappen eller zip-filen du velger."
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
 Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
-Write-Host ""
-Write-Host "Tips: Du kan velge en zip-fil direkte fra itslearning uten å pakke den ut først!"
-Write-Host ""
-
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # Funksjon for å hente bildedimensjoner
 function Get-ImageDimensions {
@@ -77,7 +93,8 @@ function Get-ImageDimensions {
     return @{Width=$width; Height=$height}
   } catch {
     Write-Host "  ADVARSEL: Kunne ikke lese bilde: $(Split-Path $imagePath -Leaf)"
-    return @{Width=650; Height=800}
+    # Standard dimensjoner: ca 11cm x 6cm ved 96 DPI
+    return @{Width=415; Height=227}
   }
 }
 
@@ -146,53 +163,6 @@ function Add-FolderNameToHeader {
   }
 }
 
-# Sjekk om Microsoft Word er installert
-Write-Host "Sjekker om Microsoft Word er installert..."
-$wordAvailable = $true
-try {
-  $testWord = New-Object -ComObject Word.Application -ErrorAction Stop
-  $testWord.Quit()
-  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($testWord) | Out-Null
-  Write-Host "Microsoft Word funnet."
-} catch {
-  Write-Host "ADVARSEL: Microsoft Word er ikke installert eller tilgjengelig."
-  Write-Host "Word- og HTML-filer vil ikke bli skrevet ut."
-  Write-Host ""
-  $continue = Read-Host "Vil du fortsette uten Word-støtte? (J/N)"
-  if ($continue -ne "J" -and $continue -ne "j") {
-    exit
-  }
-  $wordAvailable = $false
-}
-
-# Finn Adobe Reader (sjekk vanlige installasjonsplasseringer)
-$adobePaths = @(
-  "C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe",
-  "C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
-  "C:\Program Files\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
-  "C:\Program Files (x86)\Adobe\Reader 11.0\Reader\AcroRd32.exe",
-  "C:\Program Files\Adobe\Reader 11.0\Reader\AcroRd32.exe"
-)
-
-$adobeReaderPath = $null
-foreach ($path in $adobePaths) {
-  if (Test-Path $path) {
-    $adobeReaderPath = $path
-    Write-Host "Fant Adobe Reader: $path"
-    break
-  }
-}
-
-if ($adobeReaderPath -eq $null) {
-  Write-Host "ADVARSEL: Fant ikke Adobe Reader. PDF-filer vil ikke bli skrevet ut automatisk."
-  Write-Host "Installer Adobe Acrobat Reader DC for automatisk PDF-utskrift."
-  Write-Host ""
-  $continue = Read-Host "Vil du fortsette uten PDF-støtte? (J/N)"
-  if ($continue -ne "J" -and $continue -ne "j") {
-    exit
-  }
-}
-
 # Spør brukeren om de vil velge en zip-fil eller en mappe
 $result = [System.Windows.Forms.MessageBox]::Show(
   "Vil du velge en ZIP-fil fra itslearning?`n`n" +
@@ -255,6 +225,7 @@ if ($selectedPath -ne $null)
   # Hent alle Word, PDF og HTML filer i valgt mappe og undermapper
   # VIKTIG: Vi filtrerer bort filer som starter med punktum (.) siden disse ofte er
   # sikkerhetskopier eller skjulte systemfiler (f.eks. .~lock.dokument.docx)
+  Write-Host "`nSkanner filer i valgt mappe..."
   $wordFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.docx" | Where-Object { -not $_.Name.StartsWith(".") }
   $pdfFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.pdf" | Where-Object { -not $_.Name.StartsWith(".") }
   $htmlFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.html","*.htm" | Where-Object { -not $_.Name.StartsWith(".") }
@@ -262,6 +233,88 @@ if ($selectedPath -ne $null)
   # Hent alle bildefiler og tekstfiler (hopp over filer som starter med .)
   $imageFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.jpg","*.jpeg","*.png","*.gif","*.bmp" | Where-Object { -not $_.Name.StartsWith(".") }
   $textFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.txt" | Where-Object { -not $_.Name.StartsWith(".") }
+
+  Write-Host "Funnet:"
+  Write-Host "  - Word-filer (.docx): $($wordFiles.Count)"
+  Write-Host "  - PDF-filer: $($pdfFiles.Count)"
+  Write-Host "  - HTML-filer: $($htmlFiles.Count)"
+  Write-Host "  - Bildefiler: $($imageFiles.Count)"
+  Write-Host "  - Tekstfiler: $($textFiles.Count)"
+  Write-Host ""
+
+  # Sjekk om vi trenger Microsoft Word (for .docx eller .html filer)
+  $wordAvailable = $true
+  $needsWord = ($wordFiles.Count -gt 0 -or $htmlFiles.Count -gt 0 -or $imageFiles.Count -gt 0 -or $textFiles.Count -gt 0)
+
+  if ($needsWord) {
+    Write-Host "Sjekker om Microsoft Word er installert..."
+    try {
+      $testWord = New-Object -ComObject Word.Application -ErrorAction Stop
+      $testWord.Quit()
+      [System.Runtime.Interopservices.Marshal]::ReleaseComObject($testWord) | Out-Null
+      Write-Host "Microsoft Word funnet."
+      Write-Host ""
+    } catch {
+      Write-Host "ADVARSEL: Microsoft Word er ikke installert eller tilgjengelig."
+      Write-Host "Word- og HTML-filer vil ikke bli skrevet ut."
+      Write-Host ""
+      $continue = Read-Host "Vil du fortsette uten Word-støtte? (J/N)"
+      if ($continue -ne "J" -and $continue -ne "j") {
+        # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
+        if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
+          Remove-Item -Path $tempExtractPath -Recurse -Force
+        }
+        exit
+      }
+      $wordAvailable = $false
+      Write-Host ""
+    }
+  } else {
+    Write-Host "Ingen Word- eller HTML-filer funnet, hopper over Word-sjekk."
+    Write-Host ""
+  }
+
+  # Sjekk om vi trenger Adobe Reader (for PDF-filer)
+  $adobeReaderPath = $null
+  if ($pdfFiles.Count -gt 0) {
+    Write-Host "Sjekker etter Adobe Reader for PDF-utskrift..."
+
+    # Finn Adobe Reader (sjekk vanlige installasjonsplasseringer)
+    $adobePaths = @(
+      "C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe",
+      "C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
+      "C:\Program Files\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
+      "C:\Program Files (x86)\Adobe\Reader 11.0\Reader\AcroRd32.exe",
+      "C:\Program Files\Adobe\Reader 11.0\Reader\AcroRd32.exe"
+    )
+
+    foreach ($path in $adobePaths) {
+      if (Test-Path $path) {
+        $adobeReaderPath = $path
+        Write-Host "Fant Adobe Reader: $path"
+        Write-Host ""
+        break
+      }
+    }
+
+    if ($adobeReaderPath -eq $null) {
+      Write-Host "ADVARSEL: Fant ikke Adobe Reader. PDF-filer vil ikke bli skrevet ut automatisk."
+      Write-Host "Installer Adobe Acrobat Reader DC for automatisk PDF-utskrift."
+      Write-Host ""
+      $continue = Read-Host "Vil du fortsette uten PDF-støtte? (J/N)"
+      if ($continue -ne "J" -and $continue -ne "j") {
+        # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
+        if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
+          Remove-Item -Path $tempExtractPath -Recurse -Force
+        }
+        exit
+      }
+      Write-Host ""
+    }
+  } else {
+    Write-Host "Ingen PDF-filer funnet, hopper over Adobe Reader-sjekk."
+    Write-Host ""
+  }
 
   # Generer kombinerte HTML-filer for mapper med bilder og/eller tekstfiler
   Write-Host "`nGenererer kombinerte HTML-filer for mapper med bilder og tekstfiler..."

@@ -143,7 +143,7 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 - *Linje 5* (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde i centimeter (standard: 17.0 cm)
 - *Linje 6* (`$CONFIG_PRINTER`): Endre hvilken printer som skal brukes
 
-*Standard printer er:* `\\TDCSOM30\Sikker_UtskriftCS`
+*Standard printer er:* `\\TDCSPRN30\Sikker_UtskriftCS`
 
 = Feilsøking
 
