@@ -53,9 +53,13 @@
 
 #align(center)[
   #text(size: 20pt, weight: "bold")[
-    Skriv ut elevbesvarelser automatisk
+    Skriv ut alle elevbesvarelser fra itslearning
   ]
 
+  #text(size: 12pt)[
+    Ståle Gjelsten \
+    Dahlske videregående skole
+  ]
   #v(1cm)
 ]
 
@@ -71,7 +75,7 @@ Dette programmet skriver ut alle dokumenter og bilder i en mappe (eller zip-fil)
 Word-dokumenter skrives ut som de er skrevet. Hvis du velger det, legges elevens navn til i toppteksten og sidenummer i bunnteksten (format: "Side 1 av 5").
 
 == 2. HTML-filer, bilder og tekstfiler
-For hver mappe kombineres alle HTML-filer (.html, .htm), bilder (.jpg, .jpeg, .png, .gif, .bmp) og tekstfiler (.txt) til én midlertidig HTML-fil. Denne skrives ut med elevens navn og sidenummer hvis du velger det. Den midlertidige filen slettes automatisk etter utskrift.
+For hver elev kombineres alle HTML-filer (.html, .htm), bilder (.jpg, .jpeg, .png, .gif, .bmp) og tekstfiler (.txt) til én midlertidig HTML-fil. Denne skrives ut med elevens navn og sidenummer hvis du velger det. Den midlertidige filen slettes automatisk etter utskrift.
 
 == 3. PDF-filer (.pdf)
 PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en teknisk begrensning).
@@ -95,7 +99,7 @@ PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en tekn
 
 Last ned programmet #link("https://raw.githubusercontent.com/stalegjelsten/print-word-files/main/print.ps1")[*print.ps1*] (høyreklikk og velg "Lagre lenke som..." eller "Save link as...").
 
-Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
+Lagre filen et valgfritt sted på datamaskinen din. 
 
 == Steg 1: Last ned besvarelser fra itslearning
 
@@ -111,20 +115,23 @@ Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra.
 + Klikk på *Handlinger*
 + *"Last ned besvarelser"*
 + Itslearning bruker litt tid på å samle alle besvarelsene til én fil. Trykk på *klikk her for å laste ned* når filene er klare.
-+ En zip-fil lastes ned til datamaskinen din (vanligvis i Nedlastinger-mappen)
++ En zip-fil#footnote[En zip-fil er mappe som pakket sammen til en fil slik at det er enkelt å laste den ned og flytte den] lastes ned til datamaskinen din (vanligvis i Nedlastinger-mappen)
 
 == Steg 2: Kjør utskriftsprogrammet
 
++ Åpne mappen hvor du lagret `print.ps1`.
 + Høyreklikk på `print.ps1` og velg *"Kjør med PowerShell"* eller *"Run with PowerShell"*
-+ Et vindu åpnes. Les informasjonen som vises
+  - Et vindu åpnes. Les informasjonen som vises
 + Det åpnes automatisk et vindu hvor du kan velge enten:
-  - *Zip-filen* du lastet ned fra itslearning (anbefalt)
+  - *Zip-filen* du lastet ned fra itslearning
   - *En mappe* som inneholder dokumenter
-+ Velg filen/mappen og klikk OK
++ Velg filen eller mappen og klikk OK
 + Programmet viser en oversikt over alle filer som skal skrives ut
 + Du blir spurt om du vil legge til mappenavn og sidenummer på utskriftene (tast #kbd[Enter] for ja, eller skriv #kbd[n] og tast #kbd[Enter] for nei)
 + Programmet skriver nå ut alle dokumenter og bilder
-+ Når det er ferdig, tast #kbd[Enter] for å lukke vinduet
++ Når det er ferdig får du spørsmål om du vil opprette en snarvei til programmet på skrivebordet 
+  - Denne nye snarveien kan du dobbeltklikke på for å kjøre programmet, istedenfor at du trenger å høyreklikke og velge "Kjør med PowerShell"
++ Tast #kbd[Enter] for å lukke vinduet
 
 = Krav
 
@@ -171,6 +178,10 @@ Installer #link("https://get.adobe.com/no/reader/")[Adobe Acrobat Reader].
 == Hvis Word- eller HTML-filer ikke skrives ut
 
 Kontroller at Microsoft Word er installert på datamaskinen.
+
+== Hva gjør filen .no-shortcut-prompt?
+
+Hvis du takker nei til å opprette en snarvei til programmet på skrivebordet så opprettes det en spesiell fil på maskinen din som heter `.no-shortcut-prompt`. Hvis denne filen eksisterer så vil ikke programmet spørre deg om du vil opprette snarveien på skrivebordet. Det er ufarlig å slette filen.
 
 = Kontakt og lisens
 Programmet er utviklet av #link("https://github.com/stalegjelsten")[Ståle Gjelsten]. Funksjonene for å skrive ut PDF-filer, å kombinere HTML-filer og å legge til topp- og bunntekst er utviklet sammen med språkmodellen #link("https://www.anthropic.com/claude/sonnet")[Claude Sonnet 4.5 fra Anthropic]. 
