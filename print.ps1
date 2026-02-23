@@ -106,6 +106,60 @@ function Enable-VirtualTerminal {
   [VT]::SetConsoleMode($handle, $mode -bor 0x0004) | Out-Null  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
 }
 
+# Setter fargemodus på printer via Win32 DocumentProperties/SetPrinter (krever ikke admin).
+# ColorValue: 1 = DMCOLOR_MONOCHROME, 2 = DMCOLOR_COLOR.
+# Returnerer original dmColor-verdi.
+function Set-PrinterDevModeColor {
+  param([string]$PrinterName, [int16]$ColorValue)
+  $code = @"
+using System;
+using System.Runtime.InteropServices;
+using System.ComponentModel;
+public class PrinterColorHelper {
+  [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
+  public static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);
+  [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
+  public static extern int DocumentProperties(IntPtr wnd, IntPtr hp, string dev,
+    IntPtr dmOut, IntPtr dmIn, int fMode);
+  [DllImport("winspool.drv", SetLastError = true)]
+  public static extern bool SetPrinter(IntPtr hp, int lvl, IntPtr pi, int cmd);
+  [DllImport("winspool.drv", SetLastError = true)]
+  public static extern bool ClosePrinter(IntPtr hp);
+  public static short SetColor(string printerName, short color) {
+    IntPtr hp = IntPtr.Zero;
+    if (!OpenPrinter(printerName, out hp, IntPtr.Zero)) throw new Win32Exception();
+    try {
+      int sz = DocumentProperties(IntPtr.Zero, hp, printerName,
+        IntPtr.Zero, IntPtr.Zero, 0);
+      if (sz <= 0) throw new Exception("DocumentProperties size: " + sz);
+      IntPtr dm = Marshal.AllocHGlobal(sz);
+      try {
+        if (DocumentProperties(IntPtr.Zero, hp, printerName, dm, IntPtr.Zero, 2) < 0)
+          throw new Win32Exception();
+        short orig = Marshal.ReadInt16(dm, 92);
+        Marshal.WriteInt32(dm, 72, Marshal.ReadInt32(dm, 72) | 0x800);
+        Marshal.WriteInt16(dm, 92, color);
+        if (DocumentProperties(IntPtr.Zero, hp, printerName, dm, dm, 10) < 0)
+          throw new Win32Exception();
+        IntPtr pi9 = Marshal.AllocHGlobal(IntPtr.Size);
+        try {
+          Marshal.WriteIntPtr(pi9, dm);
+          if (!SetPrinter(hp, 9, pi9, 0)) throw new Win32Exception();
+        } finally { Marshal.FreeHGlobal(pi9); }
+        return orig;
+      } finally { Marshal.FreeHGlobal(dm); }
+    } finally { ClosePrinter(hp); }
+  }
+}
+"@
+  try {
+    Add-Type -TypeDefinition $code -ErrorAction Stop
+  } catch {
+    # Typen kan allerede være registrert fra tidligere kjøring
+  }
+  return [PrinterColorHelper]::SetColor($PrinterName, $ColorValue)
+}
+
 # Bygger hele menyskjermbildet som én streng med ANSI-fargekoder.
 # Støtter scrolling: viser kun elementer innenfor viewport ($scrollOffset).
 # Hele strengen inkludert cursor-home skrives i ett Console.Write()-kall.
@@ -828,11 +882,10 @@ if ($selectedPath -ne $null)
   Write-Host "Starter utskrift av $totalFiles filer..."
 
   # Sett printer til svart-hvitt hvis ønsket
-  $originalColorMode = $null
+  $originalDmColor = $null
   if ($printBlackAndWhite) {
     try {
-      $originalColorMode = (Get-PrintConfiguration -PrinterName $CONFIG_PRINTER -ErrorAction Stop).Color
-      Set-PrintConfiguration -PrinterName $CONFIG_PRINTER -Color $false -ErrorAction Stop
+      $originalDmColor = Set-PrinterDevModeColor -PrinterName $CONFIG_PRINTER -ColorValue 1
       Write-Host "Printer satt til svart-hvitt."
     } catch {
       Write-Host "ADVARSEL: Kunne ikke sette svart-hvitt på printeren: $_"
@@ -959,9 +1012,9 @@ if ($selectedPath -ne $null)
   [System.GC]::WaitForPendingFinalizers()
 
   # Gjenopprett fargemodus på printeren
-  if ($printBlackAndWhite -and $originalColorMode -ne $null) {
+  if ($printBlackAndWhite -and $originalDmColor -ne $null) {
     try {
-      Set-PrintConfiguration -PrinterName $CONFIG_PRINTER -Color $originalColorMode -ErrorAction Stop
+      Set-PrinterDevModeColor -PrinterName $CONFIG_PRINTER -ColorValue $originalDmColor | Out-Null
     } catch {
       Write-Host "ADVARSEL: Kunne ikke gjenopprette fargemodus på printeren: $_"
     }
