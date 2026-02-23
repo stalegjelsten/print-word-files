@@ -883,14 +883,13 @@ if ($selectedPath -ne $null)
           continue
         }
 
-        # Sjekk om filen er åpen i Word/Office.
-        # Office erstatter de to første tegnene i filnavnet med ~$ (f.eks. test.docx → ~$st.docx).
-        # Vi sjekker begge varianter for sikkerhetsskyld.
-        $lockName1 = "~`$" + $file.Name.Substring([Math]::Min(2, $file.Name.Length))
-        $lockName2 = "~`$" + $file.Name
-        $lockFile1 = Join-Path $file.Directory.FullName $lockName1
-        $lockFile2 = Join-Path $file.Directory.FullName $lockName2
-        if ((Test-Path $lockFile1) -or (Test-Path $lockFile2)) {
+        # Sjekk om filen er låst av et annet program (fungerer også for OneDrive-filer).
+        # Prøver å åpne filen eksklusivt – kaster IOException hvis den er opptatt.
+        try {
+          $fs = [System.IO.File]::Open($file.FullName, 'Open', 'ReadWrite', 'None')
+          $fs.Close()
+          $fs.Dispose()
+        } catch [System.IO.IOException] {
           Write-Host "HOPPET OVER! $fileCounter av $totalFiles. $($file.Name) [Mappe: $folderName]: Filen er åpen i et annet program – lukk den og prøv igjen."
           $failedFiles += $file.FullName
           continue
