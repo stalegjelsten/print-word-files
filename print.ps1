@@ -883,9 +883,14 @@ if ($selectedPath -ne $null)
           continue
         }
 
-        # Sjekk om filen er åpen i Word/Office (lås-fil ~$filnavn.docx)
-        $lockFile = Join-Path $file.Directory.FullName ("~`$" + $file.Name)
-        if (Test-Path $lockFile) {
+        # Sjekk om filen er åpen i Word/Office.
+        # Office erstatter de to første tegnene i filnavnet med ~$ (f.eks. test.docx → ~$st.docx).
+        # Vi sjekker begge varianter for sikkerhetsskyld.
+        $lockName1 = "~`$" + $file.Name.Substring([Math]::Min(2, $file.Name.Length))
+        $lockName2 = "~`$" + $file.Name
+        $lockFile1 = Join-Path $file.Directory.FullName $lockName1
+        $lockFile2 = Join-Path $file.Directory.FullName $lockName2
+        if ((Test-Path $lockFile1) -or (Test-Path $lockFile2)) {
           Write-Host "HOPPET OVER! $fileCounter av $totalFiles. $($file.Name) [Mappe: $folderName]: Filen er åpen i et annet program – lukk den og prøv igjen."
           $failedFiles += $file.FullName
           continue
