@@ -594,6 +594,54 @@ if ($selectedPath -ne $null)
     Write-Host "Hopper over topptekst og bunntekst.`n"
   }
 
+  # Spør om kommentarer skal skrives ut (kun relevant for Word-filer)
+  $printWithComments = $false
+  if ($wordFiles.Count -gt 0) {
+    Write-Host "Vil du skrive ut kommentarer i Word-dokumentene?"
+    $addComments = Read-Host "Trykk Enter for NEI, eller skriv 'j' for JA"
+    $printWithComments = ($addComments -eq "j" -or $addComments -eq "J")
+    if ($printWithComments) {
+      Write-Host "Kommentarer vil bli inkludert i utskriften.`n"
+    } else {
+      Write-Host "Kommentarer vil IKKE bli inkludert i utskriften.`n"
+    }
+  }
+
+  # Vis oppsummering og be om bekreftelse før utskrift starter
+  Write-Host "`n============================================================"
+  Write-Host "KLAR TIL UTSKRIFT - OPPSUMMERING"
+  Write-Host "============================================================"
+  Write-Host "Printer:         $CONFIG_PRINTER"
+  Write-Host "Antall filer:    $totalFiles totalt"
+  Write-Host "  - Word-filer:  $($wordFiles.Count)"
+  Write-Host "  - PDF-filer:   $($pdfFiles.Count)"
+  Write-Host "  - HTML-filer:  $($htmlFilesToPrint.Count)"
+  Write-Host ""
+  Write-Host "Innstillinger:"
+  if ($shouldAddHeaderFooter) {
+    Write-Host "  - Topptekst/bunntekst: JA (mappenavn + sidenummer)"
+  } else {
+    Write-Host "  - Topptekst/bunntekst: NEI"
+  }
+  if ($wordFiles.Count -gt 0) {
+    if ($printWithComments) {
+      Write-Host "  - Kommentarer:         JA"
+    } else {
+      Write-Host "  - Kommentarer:         NEI"
+    }
+  }
+  Write-Host "============================================================"
+
+  $confirm = Read-Host "`nStarte utskrift? Trykk Enter for JA, eller skriv 'n' for å avbryte"
+  if ($confirm -eq "n" -or $confirm -eq "N") {
+    # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
+    if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
+      Remove-Item -Path $tempExtractPath -Recurse -Force
+    }
+    Read-Host "Avbrutt. Trykk Enter for å avslutte"
+    exit
+  }
+
   Write-Host "`nStarter utskrift av $totalFiles filer..."
 
   # Opprett Word-applikasjon for Word og HTML filer
@@ -603,6 +651,8 @@ if ($selectedPath -ne $null)
     $wordApp.Visible = $false
     # Sett aktiv printer for Word-applikasjonen
     $wordApp.ActivePrinter = $CONFIG_PRINTER
+    # Sett om kommentarer skal skrives ut
+    $wordApp.Options.PrintComments = $printWithComments
   }
 
   # Gå gjennom hver fil og skriv den ut
