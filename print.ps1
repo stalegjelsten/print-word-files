@@ -118,7 +118,7 @@ function Show-Summary {
     $width = (Get-Host).UI.RawUI.WindowSize.Width
     $yellow = "$esc[33m"; $green = "$esc[32m"; $red = "$esc[31m"; $dim = "$esc[2m"; $reset = "$esc[0m"
     $titleColor = if ($HasErrors) { $red } else { $green }
-    $title = if ($HasErrors) { "  UTSKRIFT FULLFORT MED FEIL" } else { "  UTSKRIFT FULLFORT" }
+    $title = if ($HasErrors) { "  UTSKRIFT FULLFØRT MED FEIL" } else { "  UTSKRIFT FULLFØRT" }
     $buf = [System.Text.StringBuilder]::new(2048)
     [void]$buf.Append("$esc[H")
     [void]$buf.AppendLine("$yellow$("=" * $width)$reset")
@@ -883,6 +883,14 @@ if ($selectedPath -ne $null)
           continue
         }
 
+        # Sjekk om filen er åpen i Word/Office (lås-fil ~$filnavn.docx)
+        $lockFile = Join-Path $file.Directory.FullName ("~`$" + $file.Name)
+        if (Test-Path $lockFile) {
+          Write-Host "HOPPET OVER! $fileCounter av $totalFiles. $($file.Name) [Mappe: $folderName]: Filen er åpen i et annet program – lukk den og prøv igjen."
+          $failedFiles += $file.FullName
+          continue
+        }
+
         # Håndter Word-dokumenter
         $doc = $wordApp.Documents.Open($file.FullName)
 
@@ -959,7 +967,12 @@ if ($selectedPath -ne $null)
 
     } catch
     {
-      Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name) [Mappe: $folderName]: $_"
+      $errMsg = $_.Exception.Message
+      if ($errMsg -match "lock|låst|in use|opptatt|being used|another user|annen bruker") {
+        Write-Host "FEIL! $fileCounter av $totalFiles. $($file.Name) [Mappe: $folderName]: Filen er åpen i et annet program – lukk den og prøv igjen."
+      } else {
+        Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name) [Mappe: $folderName]: $_"
+      }
       $failedFiles += $file.FullName
     }
   }
