@@ -80,6 +80,116 @@ Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
 Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
 
+# Funksjon for interaktiv innstillingsmeny (TUI)
+# Viser filer og innstillinger som brukeren kan markere/avmarkere.
+# Navigér med piltaster, endre valg med mellomrom, bekreft med Enter, avbryt med Esc.
+# Menyelementer har Type: "header" (ikke valgbar), "separator" (tom linje), eller
+# "item" (valgbar, med Checked, Label, og valgfri Detail).
+function Show-PrintSettings {
+  param (
+    [string]$printer,
+    [object[]]$menuItems
+  )
+
+  # Finn første valgbare element
+  $selectedIndex = 0
+  for ($i = 0; $i -lt $menuItems.Count; $i++) {
+    if ($menuItems[$i].Selectable) {
+      $selectedIndex = $i
+      break
+    }
+  }
+
+  $menuTop = [Console]::CursorTop
+  $originalCursorVisible = [Console]::CursorVisible
+  [Console]::CursorVisible = $false
+  $firstRender = $true
+
+  try {
+    while ($true) {
+      [Console]::SetCursorPosition(0, $menuTop)
+
+      $lineCount = 0
+      Write-Host "============================================================"; $lineCount++
+      Write-Host "  UTSKRIFTSINNSTILLINGER"; $lineCount++
+      Write-Host "============================================================"; $lineCount++
+      Write-Host "  Printer: $($printer.PadRight(50))"; $lineCount++
+      Write-Host ""; $lineCount++
+
+      for ($i = 0; $i -lt $menuItems.Count; $i++) {
+        $item = $menuItems[$i]
+
+        if ($item.Type -eq "header") {
+          Write-Host "  $($item.Label.PadRight(56))" -ForegroundColor Yellow
+          $lineCount++
+        }
+        elseif ($item.Type -eq "separator") {
+          Write-Host ""
+          $lineCount++
+        }
+        elseif ($item.Selectable) {
+          $check = if ($item.Checked) { "X" } else { " " }
+          $pointer = if ($i -eq $selectedIndex) { ">" } else { " " }
+
+          if ($item.Detail) {
+            $text = "  $pointer [$check] $($item.Label)  [$($item.Detail)]"
+          } else {
+            $text = "  $pointer [$check] $($item.Label)"
+          }
+          $text = $text.PadRight(60)
+
+          if ($i -eq $selectedIndex) {
+            Write-Host $text -ForegroundColor Cyan
+          } else {
+            Write-Host $text
+          }
+          $lineCount++
+        }
+      }
+
+      Write-Host ""; $lineCount++
+      Write-Host "  Piltaster: naviger | Mellomrom: endre valg"; $lineCount++
+      Write-Host "  Enter: start utskrift | Esc: avbryt"; $lineCount++
+      Write-Host "============================================================"; $lineCount++
+
+      # Etter første rendering, juster menuTop i tilfelle konsollen scrollet
+      if ($firstRender) {
+        $menuTop = [Console]::CursorTop - $lineCount
+        if ($menuTop -lt 0) { $menuTop = 0 }
+        $firstRender = $false
+      }
+
+      $key = [Console]::ReadKey($true)
+
+      switch ($key.Key) {
+        "UpArrow" {
+          $next = $selectedIndex - 1
+          while ($next -ge 0 -and -not $menuItems[$next].Selectable) { $next-- }
+          if ($next -ge 0) { $selectedIndex = $next }
+        }
+        "DownArrow" {
+          $next = $selectedIndex + 1
+          while ($next -lt $menuItems.Count -and -not $menuItems[$next].Selectable) { $next++ }
+          if ($next -lt $menuItems.Count) { $selectedIndex = $next }
+        }
+        "Spacebar" {
+          $menuItems[$selectedIndex].Checked = -not $menuItems[$selectedIndex].Checked
+        }
+        "Enter" {
+          Write-Host ""
+          return $true
+        }
+        "Escape" {
+          Write-Host ""
+          return $false
+        }
+      }
+    }
+  } finally {
+    [Console]::CursorVisible = $originalCursorVisible
+  }
+}
+
 # Funksjon for å hente bildedimensjoner
 function Get-ImageDimensions {
   param (
@@ -558,82 +668,44 @@ if ($selectedPath -ne $null)
   $totalFiles = $allFiles.Count
   $failedFiles = @()
 
-  # Vis oversikt over filer som skal skrives ut
-  Write-Host "`n============================================================"
-  Write-Host "OVERSIKT OVER FILER SOM SKAL SKRIVES UT ($totalFiles filer)"
-  Write-Host "============================================================"
+  # Bygg menyelementer for TUI (filer + innstillinger)
+  $menuItems = @()
 
-  Write-Host "`nWord-filer ($($wordFiles.Count)):"
-  foreach ($file in $wordFiles) {
-    Write-Host "  - $($file.Name) [Mappe: $($file.Directory.Name)]"
-  }
-
-  Write-Host "`nPDF-filer ($($pdfFiles.Count)):"
-  foreach ($file in $pdfFiles) {
-    Write-Host "  - $($file.Name) [Mappe: $($file.Directory.Name)]"
-  }
-
-  Write-Host "`nHTML-filer ($($htmlFilesToPrint.Count)):"
-  foreach ($file in $htmlFilesToPrint) {
-    Write-Host "  - $($file.Name) [Mappe: $($file.Directory.Name)]"
-  }
-
-  Write-Host "`n============================================================"
-
-  # Spør om topptekst og bunntekst skal legges til
-  Write-Host "`nVil du legge til mappenavn i topptekst og sidenummer i bunntekst?"
-  Write-Host "(Dette gjelder kun for Word og HTML-filer, ikke PDF-filer)"
-  $addHeaderFooter = Read-Host "Trykk Enter for JA, eller skriv 'n' for NEI"
-
-  # Standard er ja (tom input eller noe annet enn 'n')
-  $shouldAddHeaderFooter = ($addHeaderFooter -ne "n" -and $addHeaderFooter -ne "N")
-
-  if ($shouldAddHeaderFooter) {
-    Write-Host "Legger til topptekst og bunntekst på utskriftene.`n"
-  } else {
-    Write-Host "Hopper over topptekst og bunntekst.`n"
-  }
-
-  # Spør om kommentarer skal skrives ut (kun relevant for Word-filer)
-  $printWithComments = $false
   if ($wordFiles.Count -gt 0) {
-    Write-Host "Vil du skrive ut kommentarer i Word-dokumentene?"
-    $addComments = Read-Host "Trykk Enter for NEI, eller skriv 'j' for JA"
-    $printWithComments = ($addComments -eq "j" -or $addComments -eq "J")
-    if ($printWithComments) {
-      Write-Host "Kommentarer vil bli inkludert i utskriften.`n"
-    } else {
-      Write-Host "Kommentarer vil IKKE bli inkludert i utskriften.`n"
+    $menuItems += @{ Type = "header"; Label = "Word-filer ($($wordFiles.Count)):"; Selectable = $false }
+    foreach ($f in $wordFiles) {
+      $menuItems += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
     }
   }
 
-  # Vis oppsummering og be om bekreftelse før utskrift starter
-  Write-Host "`n============================================================"
-  Write-Host "KLAR TIL UTSKRIFT - OPPSUMMERING"
-  Write-Host "============================================================"
-  Write-Host "Printer:         $CONFIG_PRINTER"
-  Write-Host "Antall filer:    $totalFiles totalt"
-  Write-Host "  - Word-filer:  $($wordFiles.Count)"
-  Write-Host "  - PDF-filer:   $($pdfFiles.Count)"
-  Write-Host "  - HTML-filer:  $($htmlFilesToPrint.Count)"
-  Write-Host ""
-  Write-Host "Innstillinger:"
-  if ($shouldAddHeaderFooter) {
-    Write-Host "  - Topptekst/bunntekst: JA (mappenavn + sidenummer)"
-  } else {
-    Write-Host "  - Topptekst/bunntekst: NEI"
-  }
-  if ($wordFiles.Count -gt 0) {
-    if ($printWithComments) {
-      Write-Host "  - Kommentarer:         JA"
-    } else {
-      Write-Host "  - Kommentarer:         NEI"
+  if ($pdfFiles.Count -gt 0) {
+    $menuItems += @{ Type = "separator"; Selectable = $false }
+    $menuItems += @{ Type = "header"; Label = "PDF-filer ($($pdfFiles.Count)):"; Selectable = $false }
+    foreach ($f in $pdfFiles) {
+      $menuItems += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
     }
   }
-  Write-Host "============================================================"
 
-  $confirm = Read-Host "`nStarte utskrift? Trykk Enter for JA, eller skriv 'n' for å avbryte"
-  if ($confirm -eq "n" -or $confirm -eq "N") {
+  if ($htmlFilesToPrint.Count -gt 0) {
+    $menuItems += @{ Type = "separator"; Selectable = $false }
+    $menuItems += @{ Type = "header"; Label = "HTML-filer ($($htmlFilesToPrint.Count)):"; Selectable = $false }
+    foreach ($f in $htmlFilesToPrint) {
+      $menuItems += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
+    }
+  }
+
+  # Innstillinger
+  $menuItems += @{ Type = "separator"; Selectable = $false }
+  $menuItems += @{ Type = "header"; Label = "Innstillinger:"; Selectable = $false }
+  $menuItems += @{ Type = "item"; Label = "Topptekst og bunntekst (mappenavn + sidenummer)"; Checked = $true; Selectable = $true; Key = "headerFooter" }
+  if ($wordFiles.Count -gt 0) {
+    $menuItems += @{ Type = "item"; Label = "Skriv ut kommentarer i Word-dokumenter"; Checked = $false; Selectable = $true; Key = "comments" }
+  }
+
+  # Vis interaktiv innstillingsmeny
+  $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems
+
+  if (-not $confirmed) {
     # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
     if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
       Remove-Item -Path $tempExtractPath -Recurse -Force
@@ -642,7 +714,17 @@ if ($selectedPath -ne $null)
     exit
   }
 
-  Write-Host "`nStarter utskrift av $totalFiles filer..."
+  # Les innstillinger fra menyen
+  $shouldAddHeaderFooter = ($menuItems | Where-Object { $_.Key -eq "headerFooter" }).Checked
+  $printWithComments = $false
+  $commentsItem = $menuItems | Where-Object { $_.Key -eq "comments" }
+  if ($commentsItem) { $printWithComments = $commentsItem.Checked }
+
+  # Bygg filliste basert på avkryssede filer
+  $allFiles = @($menuItems | Where-Object { $_.File -and $_.Checked } | ForEach-Object { $_.File })
+  $totalFiles = $allFiles.Count
+
+  Write-Host "Starter utskrift av $totalFiles filer..."
 
   # Opprett Word-applikasjon for Word og HTML filer
   $wordApp = $null
@@ -651,8 +733,6 @@ if ($selectedPath -ne $null)
     $wordApp.Visible = $false
     # Sett aktiv printer for Word-applikasjonen
     $wordApp.ActivePrinter = $CONFIG_PRINTER
-    # Sett om kommentarer skal skrives ut
-    $wordApp.Options.PrintComments = $printWithComments
   }
 
   # Gå gjennom hver fil og skriv den ut
@@ -683,7 +763,9 @@ if ($selectedPath -ne $null)
         }
 
         # Skriv ut dokumentet (1 kopi)
-        $doc.PrintOut([ref]$false, [ref]$false, [ref]0, [ref]"", [ref]"", [ref]"", [ref]0, [ref]1)
+        # Item-parameter: 0 = wdPrintDocumentContent (uten kommentarer), 7 = wdPrintMarkup (med kommentarer)
+        $wdPrintItem = if ($printWithComments) { 7 } else { 0 }
+        $doc.PrintOut([ref]$false, [ref]$false, [ref]0, [ref]"", [ref]"", [ref]"", [ref]$wdPrintItem, [ref]1)
 
         # Lukk dokumentet uten å lagre endringer
         $doc.Close([ref]$false)
@@ -748,7 +830,7 @@ if ($selectedPath -ne $null)
 
     } catch
     {
-      Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name): $_"
+      Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name) [Mappe: $folderName]: $_"
       $failedFiles += $file.FullName
     }
   }
