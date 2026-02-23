@@ -173,8 +173,8 @@ public class PrinterColorHelper {
         short orig = Marshal.ReadInt16(dm, 92);
         Marshal.WriteInt32(dm, 72, Marshal.ReadInt32(dm, 72) | 0x800);
         Marshal.WriteInt16(dm, 92, color);
-        if (DocumentProperties(IntPtr.Zero, hp, printerName, dm, dm, 10) < 0)
-          throw new Win32Exception();
+        // Ikke bruk samme buffer for input og output i DocumentProperties –
+        // det kan korruptere heapen. Lagre DEVMODE direkte via SetPrinter.
         IntPtr pi9 = Marshal.AllocHGlobal(IntPtr.Size);
         try {
           Marshal.WriteIntPtr(pi9, dm);
