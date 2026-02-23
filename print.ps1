@@ -472,10 +472,18 @@ if ($selectedPath -ne $null)
 
   try {
 
+  $width = (Get-Host).UI.RawUI.WindowSize.Width
+  Write-Host ("=" * [Math]::Min(60, $width))
+  Write-Host "  SKRIV UT ELEVBESVARELSER FRA ITSLEARNING"
+  Write-Host ("=" * [Math]::Min(60, $width))
+  Write-Host ""
+  Write-Host "  Printer: $CONFIG_PRINTER"
+  Write-Host ""
+
   # Hent alle Word, PDF og HTML filer i valgt mappe og undermapper
   # VIKTIG: Vi filtrerer bort filer som starter med punktum (.) siden disse ofte er
   # sikkerhetskopier eller skjulte systemfiler (f.eks. .~lock.dokument.docx)
-  Write-Host "`nSkanner filer i valgt mappe..."
+  Write-Host "Skanner filer i valgt mappe..."
   $wordFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.docx" | Where-Object { -not $_.Name.StartsWith(".") }
   $pdfFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.pdf" | Where-Object { -not $_.Name.StartsWith(".") }
   $htmlFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.html","*.htm" | Where-Object { -not $_.Name.StartsWith(".") }
@@ -888,7 +896,7 @@ if ($selectedPath -ne $null)
       {
         if ($wordApp -eq $null) {
           Write-Host "HOPPET OVER! $fileCounter av $totalFiles. Word: $($file.Name) (Word ikke tilgjengelig)"
-          $failedFiles += $file.FullName
+          $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason="Word ikke tilgjengelig"}
           continue
         }
 
@@ -900,7 +908,7 @@ if ($selectedPath -ne $null)
           $fs.Dispose()
         } catch [System.IO.IOException] {
           Write-Host "HOPPET OVER! $fileCounter av $totalFiles. $($file.Name) [Mappe: $folderName]: Filen er åpen i et annet program – lukk den og prøv igjen."
-          $failedFiles += $file.FullName
+          $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason="Filen er åpen i et annet program"}
           continue
         }
 
@@ -950,14 +958,14 @@ if ($selectedPath -ne $null)
           Write-Host "  NB: PDF-filer får ikke automatisk mappenavn i topptekst"
         } else {
           Write-Host "HOPPET OVER! $fileCounter av $totalFiles. PDF: $($file.Name) (Adobe Reader ikke funnet)"
-          $failedFiles += $file.FullName
+          $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason="Adobe Reader ikke funnet"}
         }
       }
       elseif ($fileExtension -eq ".html" -or $fileExtension -eq ".htm")
       {
         if ($wordApp -eq $null) {
           Write-Host "HOPPET OVER! $fileCounter av $totalFiles. HTML: $($file.Name) (Word ikke tilgjengelig)"
-          $failedFiles += $file.FullName
+          $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason="Word ikke tilgjengelig"}
           continue
         }
 
@@ -983,10 +991,11 @@ if ($selectedPath -ne $null)
       $errMsg = $_.Exception.Message
       if ($errMsg -match "lock|låst|in use|opptatt|being used|another user|annen bruker") {
         Write-Host "FEIL! $fileCounter av $totalFiles. $($file.Name) [Mappe: $folderName]: Filen er åpen i et annet program – lukk den og prøv igjen."
+        $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason="Filen er åpen i et annet program"}
       } else {
-        Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name) [Mappe: $folderName]: $_"
+        Write-Host "FEIL! $fileCounter av $totalFiles. Problem med $($file.Name) [Mappe: $folderName]: $errMsg"
+        $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason=$errMsg}
       }
-      $failedFiles += $file.FullName
     }
   }
 
@@ -994,7 +1003,7 @@ if ($selectedPath -ne $null)
   $summaryLines = @()
   if ($failedFiles.Count -gt 0) {
     $summaryLines += "Følgende filer ble IKKE skrevet ut:"
-    $failedFiles | ForEach-Object { $summaryLines += "  - $_" }
+    $failedFiles | ForEach-Object { $summaryLines += "  - $($_.Name) [$($_.Folder)]: $($_.Reason)" }
     $summaryLines += ""
   } else {
     $summaryLines += "$totalFiles dokumenter skrevet ut."
