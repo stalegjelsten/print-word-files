@@ -76,9 +76,6 @@ try {
   exit
 }
 
-Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i mappen eller zip-filen du velger."
-Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
-Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
 
 # Aktiverer ANSI/VT escape-koder i Windows-konsollen.
 # Kreves for farger via escape-sekvenser og alternativ skjermbuffer.
@@ -108,12 +105,12 @@ function Enable-VirtualTerminal {
 
 # Viser oppsummering i alternate screen buffer og venter på at brukeren trykker Enter.
 function Show-Summary {
-  param([string[]]$Lines, [bool]$HasErrors = $false)
+  param([string[]]$Lines, [bool]$HasErrors = $false, [switch]$InAltScreen)
   $esc = [char]27
   Enable-VirtualTerminal
   $origCursor = [Console]::CursorVisible
   [Console]::CursorVisible = $false
-  [Console]::Write("$esc[?1049h")
+  if (-not $InAltScreen) { [Console]::Write("$esc[?1049h") }
   try {
     $width = (Get-Host).UI.RawUI.WindowSize.Width
     $yellow = "$esc[33m"; $green = "$esc[32m"; $red = "$esc[31m"; $dim = "$esc[2m"; $reset = "$esc[0m"
@@ -135,7 +132,7 @@ function Show-Summary {
       $key = (Get-Host).UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     } while ($key.VirtualKeyCode -ne 0x0D)
   } finally {
-    [Console]::Write("$esc[?1049l")
+    if (-not $InAltScreen) { [Console]::Write("$esc[?1049l") }
     [Console]::CursorVisible = $origCursor
   }
 }
@@ -230,7 +227,8 @@ function Build-MenuBuffer {
 function Show-PrintSettings {
   param (
     [string]$printer,
-    [object[]]$menuItems
+    [object[]]$menuItems,
+    [switch]$InAltScreen
   )
 
   # Finn startvalg: første innstilling, ellers første valgbare
@@ -263,8 +261,8 @@ function Show-PrintSettings {
     $scrollOffset = [Math]::Min($selectedIndex - $viewportSize + $scrollMargin + 1, [Math]::Max(0, $menuItems.Count - $viewportSize))
   }
 
-  # Bytt til alternativ skjermbuffer (bevarer original terminalinnhold)
-  [Console]::Write("$esc[?1049h")
+  # Bytt til alternativ skjermbuffer (bevares original terminalinnhold)
+  if (-not $InAltScreen) { [Console]::Write("$esc[?1049h") }
 
   try {
     # Tegn menyen første gang
@@ -321,7 +319,7 @@ function Show-PrintSettings {
     }
   } finally {
     # Bytt tilbake til original skjermbuffer
-    [Console]::Write("$esc[?1049l")
+    if (-not $InAltScreen) { [Console]::Write("$esc[?1049l") }
     [Console]::CursorVisible = $originalCursorVisible
   }
 }
@@ -467,6 +465,12 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
 # Hvis brukeren klikket OK (enten for fil eller mappe)
 if ($selectedPath -ne $null)
 {
+  $esc = [char]27
+  Enable-VirtualTerminal
+  [Console]::CursorVisible = $false
+  [Console]::Write("$esc[?1049h$esc[2J$esc[H")
+
+  try {
 
   # Hent alle Word, PDF og HTML filer i valgt mappe og undermapper
   # VIKTIG: Vi filtrerer bort filer som starter med punktum (.) siden disse ofte er
@@ -833,7 +837,7 @@ if ($selectedPath -ne $null)
   Utskriftsinnstillinger"; Selectable = $false }
 
   # Vis interaktiv innstillingsmeny
-  $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems
+  $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems -InAltScreen
 
   if (-not $confirmed) {
     # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
@@ -853,6 +857,11 @@ if ($selectedPath -ne $null)
   $allFiles = @($menuItems | Where-Object { $_.File -and $_.Checked } | ForEach-Object { $_.File })
   $totalFiles = $allFiles.Count
 
+  $width = (Get-Host).UI.RawUI.WindowSize.Width
+  [Console]::Write("$esc[2J$esc[H")
+  Write-Host ("=" * [Math]::Min(60, $width))
+  Write-Host "  SKRIVER UT  |  Printer: $CONFIG_PRINTER"
+  Write-Host ("=" * [Math]::Min(60, $width))
   Write-Host "Starter utskrift av $totalFiles filer..."
 
   # Opprett Word-applikasjon for Word og HTML filer
@@ -1044,7 +1053,7 @@ if ($selectedPath -ne $null)
     }
   }
 
-  Show-Summary -Lines $summaryLines -HasErrors ($failedFiles.Count -gt 0)
+  Show-Summary -Lines $summaryLines -HasErrors ($failedFiles.Count -gt 0) -InAltScreen
 
   # Avslutt Word-applikasjonen etter at oppsummeringen er vist
   if ($wordApp -ne $null) {
@@ -1052,6 +1061,11 @@ if ($selectedPath -ne $null)
     [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wordApp) | Out-Null
     [System.GC]::Collect()
     [System.GC]::WaitForPendingFinalizers()
+  }
+
+  } finally {
+    [Console]::Write("$esc[?1049l")
+    [Console]::CursorVisible = $true
   }
 } else
 {
