@@ -80,10 +80,65 @@ Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
 Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
 
-# Funksjon for interaktiv innstillingsmeny (TUI)
+# Tegner hele menyen på nytt fra toppen.
+# Returnerer antall konsoll-linjer som ble tegnet.
+# Teknikk basert på PSMenu (MIT): full redraw med skjult markør,
+# linjeutfylling til vindusbredde, og batched tastetrykk.
+function Write-PrintMenu {
+  param(
+    [string]$printer,
+    [object[]]$menuItems,
+    [int]$selectedIndex,
+    [int]$previousHeight
+  )
+
+  # Flytt markøren til toppen av menyområdet for å skrive over forrige tegning
+  if ($previousHeight -gt 0) {
+    [Console]::SetCursorPosition(0, [Math]::Max(0, [Console]::CursorTop - $previousHeight))
+  }
+
+  $width = (Get-Host).UI.RawUI.WindowSize.Width
+  $height = 0
+
+  Write-Host ("=" * 60).PadRight($width); $height++
+  Write-Host ("  UTSKRIFTSINNSTILLINGER").PadRight($width); $height++
+  Write-Host ("=" * 60).PadRight($width); $height++
+  Write-Host ("  Printer: $printer").PadRight($width); $height++
+  Write-Host "".PadRight($width); $height++
+
+  for ($i = 0; $i -lt $menuItems.Count; $i++) {
+    $item = $menuItems[$i]
+    if ($item.Type -eq "header") {
+      Write-Host ("  $($item.Label)").PadRight($width) -ForegroundColor Yellow
+    }
+    elseif ($item.Type -eq "separator") {
+      Write-Host "".PadRight($width)
+    }
+    elseif ($item.Selectable) {
+      $check = if ($item.Checked) { "X" } else { " " }
+      $pointer = if ($i -eq $selectedIndex) { ">" } else { " " }
+      $text = "  $pointer [$check] $($item.Label)"
+      if ($item.Detail) { $text += "  [$($item.Detail)]" }
+      if ($i -eq $selectedIndex) {
+        Write-Host $text.PadRight($width) -ForegroundColor Cyan
+      } else {
+        Write-Host $text.PadRight($width)
+      }
+    }
+    $height++
+  }
+
+  Write-Host "".PadRight($width); $height++
+  Write-Host ("  Piltaster: naviger | Mellomrom: endre valg").PadRight($width); $height++
+  Write-Host ("  Enter: start utskrift | Esc: avbryt").PadRight($width); $height++
+  Write-Host ("=" * 60).PadRight($width); $height++
+
+  return $height
+}
+
+# Interaktiv innstillingsmeny (TUI).
 # Viser filer og innstillinger som brukeren kan markere/avmarkere.
 # Navigér med piltaster, endre valg med mellomrom, bekreft med Enter, avbryt med Esc.
-# Kun de linjene som faktisk endrer seg tegnes på nytt (ingen full redraw).
 function Show-PrintSettings {
   param (
     [string]$printer,
@@ -101,116 +156,53 @@ function Show-PrintSettings {
   }
   if ($selectedIndex -eq -1) { $selectedIndex = $firstSelectable }
 
-  # Beregn linjeposisjon for hvert menyelement (hvert element = 1 linje)
-  $headerLines = 5
-  $lineOffsets = New-Object int[] $menuItems.Count
-  for ($i = 0; $i -lt $menuItems.Count; $i++) {
-    $lineOffsets[$i] = $headerLines + $i
-  }
-  $totalLines = $headerLines + $menuItems.Count + 4
-
-  $menuTop = [Console]::CursorTop
   $originalCursorVisible = [Console]::CursorVisible
   [Console]::CursorVisible = $false
-
-  # Scriptblock for å tegne én valgbar linje uten å tegne hele menyen på nytt
-  $renderLine = {
-    param([int]$idx, [bool]$isSelected)
-    $item = $menuItems[$idx]
-    [Console]::SetCursorPosition(0, $menuTop + $lineOffsets[$idx])
-    $check = if ($item.Checked) { "X" } else { " " }
-    $pointer = if ($isSelected) { ">" } else { " " }
-    $text = "  $pointer [$check] $($item.Label)"
-    if ($item.Detail) { $text += "  [$($item.Detail)]" }
-    $text = $text.PadRight(60)
-    if ($isSelected) {
-      $saved = [Console]::ForegroundColor
-      [Console]::ForegroundColor = [ConsoleColor]::Cyan
-      [Console]::Write($text)
-      [Console]::ForegroundColor = $saved
-    } else {
-      [Console]::Write($text)
-    }
-  }
+  $menuHeight = 0
 
   try {
-    # --- Første rendering (full tegning) ---
-    Write-Host "============================================================"
-    Write-Host "  UTSKRIFTSINNSTILLINGER"
-    Write-Host "============================================================"
-    Write-Host "  Printer: $printer"
-    Write-Host ""
+    # Første rendering
+    $menuHeight = Write-PrintMenu -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -previousHeight 0
 
-    for ($i = 0; $i -lt $menuItems.Count; $i++) {
-      $item = $menuItems[$i]
-      if ($item.Type -eq "header") {
-        Write-Host "  $($item.Label)" -ForegroundColor Yellow
-      }
-      elseif ($item.Type -eq "separator") {
-        Write-Host ""
-      }
-      elseif ($item.Selectable) {
-        $check = if ($item.Checked) { "X" } else { " " }
-        $pointer = if ($i -eq $selectedIndex) { ">" } else { " " }
-        $text = "  $pointer [$check] $($item.Label)"
-        if ($item.Detail) { $text += "  [$($item.Detail)]" }
-        $text = $text.PadRight(60)
-        if ($i -eq $selectedIndex) {
-          Write-Host $text -ForegroundColor Cyan
-        } else {
-          Write-Host $text
-        }
-      }
-    }
-
-    Write-Host ""
-    Write-Host "  Piltaster: naviger | Mellomrom: endre valg"
-    Write-Host "  Enter: start utskrift | Esc: avbryt"
-    Write-Host "============================================================"
-
-    # Juster menuTop etter eventuell konsoll-scroll
-    $menuTop = [Console]::CursorTop - $totalLines
-    if ($menuTop -lt 0) { $menuTop = 0 }
-
-    # --- Inputløkke (kun delvis oppdatering av endrede linjer) ---
+    # Inputløkke med batched tastetrykk
     while ($true) {
-      $key = [Console]::ReadKey($true)
+      $needsRedraw = $false
 
-      switch ($key.Key) {
-        "UpArrow" {
-          $prev = $selectedIndex
+      # Les og behandle alle bufrede tastetrykk før redraw
+      do {
+        $press = (Get-Host).UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        $vk = $press.VirtualKeyCode
+
+        # Escape - avbryt
+        if ($vk -eq 0x1B) { return $false }
+
+        # Enter - bekreft
+        if ($vk -eq 0x0D) { return $true }
+
+        # Mellomrom - toggle avkryssing
+        if ($vk -eq 0x20) {
+          $menuItems[$selectedIndex].Checked = -not $menuItems[$selectedIndex].Checked
+          $needsRedraw = $true
+        }
+
+        # Pil opp
+        if ($vk -eq 0x26) {
           $next = $selectedIndex - 1
           while ($next -ge 0 -and -not $menuItems[$next].Selectable) { $next-- }
-          if ($next -ge 0) {
-            $selectedIndex = $next
-            & $renderLine $prev $false
-            & $renderLine $selectedIndex $true
-          }
+          if ($next -ge 0) { $selectedIndex = $next; $needsRedraw = $true }
         }
-        "DownArrow" {
-          $prev = $selectedIndex
+
+        # Pil ned
+        if ($vk -eq 0x28) {
           $next = $selectedIndex + 1
           while ($next -lt $menuItems.Count -and -not $menuItems[$next].Selectable) { $next++ }
-          if ($next -lt $menuItems.Count) {
-            $selectedIndex = $next
-            & $renderLine $prev $false
-            & $renderLine $selectedIndex $true
-          }
+          if ($next -lt $menuItems.Count) { $selectedIndex = $next; $needsRedraw = $true }
         }
-        "Spacebar" {
-          $menuItems[$selectedIndex].Checked = -not $menuItems[$selectedIndex].Checked
-          & $renderLine $selectedIndex $true
-        }
-        "Enter" {
-          [Console]::SetCursorPosition(0, $menuTop + $totalLines)
-          Write-Host ""
-          return $true
-        }
-        "Escape" {
-          [Console]::SetCursorPosition(0, $menuTop + $totalLines)
-          Write-Host ""
-          return $false
-        }
+      } while ([Console]::KeyAvailable)
+
+      # Tegn menyen på nytt bare hvis noe endret seg
+      if ($needsRedraw) {
+        $menuHeight = Write-PrintMenu -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -previousHeight $menuHeight
       }
     }
   } finally {
