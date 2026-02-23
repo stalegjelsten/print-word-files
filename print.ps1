@@ -800,6 +800,7 @@ if ($selectedPath -ne $null)
   if ($wordFiles.Count -gt 0) {
     $menuItems += @{ Type = "item"; Label = "Skriv ut kommentarer i Word-dokumenter"; Checked = $false; Selectable = $true; Key = "comments" }
   }
+  $menuItems += @{ Type = "item"; Label = "Skriv ut i svart-hvitt"; Checked = $false; Selectable = $true; Key = "blackAndWhite" }
 
   # Vis interaktiv innstillingsmeny
   $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems
@@ -818,12 +819,25 @@ if ($selectedPath -ne $null)
   $printWithComments = $false
   $commentsItem = $menuItems | Where-Object { $_.Key -eq "comments" }
   if ($commentsItem) { $printWithComments = $commentsItem.Checked }
+  $printBlackAndWhite = ($menuItems | Where-Object { $_.Key -eq "blackAndWhite" }).Checked
 
   # Bygg filliste basert på avkryssede filer
   $allFiles = @($menuItems | Where-Object { $_.File -and $_.Checked } | ForEach-Object { $_.File })
   $totalFiles = $allFiles.Count
 
   Write-Host "Starter utskrift av $totalFiles filer..."
+
+  # Sett printer til svart-hvitt hvis ønsket
+  $originalColorMode = $null
+  if ($printBlackAndWhite) {
+    try {
+      $originalColorMode = (Get-PrintConfiguration -PrinterName $CONFIG_PRINTER -ErrorAction Stop).Color
+      Set-PrintConfiguration -PrinterName $CONFIG_PRINTER -Color $false -ErrorAction Stop
+      Write-Host "Printer satt til svart-hvitt."
+    } catch {
+      Write-Host "ADVARSEL: Kunne ikke sette svart-hvitt på printeren: $_"
+    }
+  }
 
   # Opprett Word-applikasjon for Word og HTML filer
   $wordApp = $null
@@ -943,6 +957,15 @@ if ($selectedPath -ne $null)
   # Frigjør COM-objektressurser
   [System.GC]::Collect()
   [System.GC]::WaitForPendingFinalizers()
+
+  # Gjenopprett fargemodus på printeren
+  if ($printBlackAndWhite -and $originalColorMode -ne $null) {
+    try {
+      Set-PrintConfiguration -PrinterName $CONFIG_PRINTER -Color $originalColorMode -ErrorAction Stop
+    } catch {
+      Write-Host "ADVARSEL: Kunne ikke gjenopprette fargemodus på printeren: $_"
+    }
+  }
 
   if ($failedFiles.Count -gt 0) {
     Write-Host "`nFølgende filer ble ikke skrevet ut:"
