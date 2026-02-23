@@ -1000,20 +1000,24 @@ if ($selectedPath -ne $null)
   }
 
   # Bygg oppsummeringslinjer
+  $printedCount = $totalFiles - $failedFiles.Count
   $summaryLines = @()
+  $summaryLines += "Skrevet ut:  $printedCount av $totalFiles filer"
   if ($failedFiles.Count -gt 0) {
-    $summaryLines += "Følgende filer ble IKKE skrevet ut:"
+    $summaryLines += "Feil:        $($failedFiles.Count) filer ble ikke skrevet ut"
+  }
+  $summaryLines += ""
+  if ($failedFiles.Count -gt 0) {
+    $summaryLines += "Filer som ikke ble skrevet ut:"
     $failedFiles | ForEach-Object { $summaryLines += "  - $($_.Name) [$($_.Folder)]: $($_.Reason)" }
     $summaryLines += ""
-  } else {
-    $summaryLines += "$totalFiles dokumenter skrevet ut."
-    $summaryLines += ""
   }
-  $summaryLines += "- Word-filer: $($wordFiles.Count)"
-  $summaryLines += "- PDF-filer: $($pdfFiles.Count)"
-  $summaryLines += "- HTML-filer skrevet ut: $($htmlFilesToPrint.Count)"
-  $summaryLines += "- Bildefiler: $($imageFiles.Count)"
-  $summaryLines += "- Tekstfiler: $($textFiles.Count)"
+  $summaryWordCount  = @($allFiles | Where-Object { $_.Extension.ToLower() -eq ".docx" }).Count
+  $summaryPdfCount   = @($allFiles | Where-Object { $_.Extension.ToLower() -eq ".pdf" }).Count
+  $summaryHtmlCount  = @($allFiles | Where-Object { $_.Extension.ToLower() -match "\.html?" }).Count
+  $summaryLines += "- Word-filer (.docx): $summaryWordCount"
+  $summaryLines += "- PDF-filer:           $summaryPdfCount"
+  $summaryLines += "- HTML-/kombifiler:    $summaryHtmlCount"
 
   # Rydd opp genererte HTML-filer automatisk (stille)
   if ($generatedHtmlFiles.Count -gt 0) {
