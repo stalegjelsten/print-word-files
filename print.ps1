@@ -107,29 +107,45 @@ function Enable-VirtualTerminal {
 }
 
 # Bygger hele menyskjermbildet som én streng med ANSI-fargekoder.
-# Returnerer strengen klar til å skrives til konsollen i ett kall.
+# Støtter scrolling: viser kun elementer innenfor viewport ($scrollOffset).
+# Hele strengen inkludert cursor-home skrives i ett Console.Write()-kall.
 function Build-MenuBuffer {
   param(
     [string]$printer,
     [object[]]$menuItems,
-    [int]$selectedIndex
+    [int]$selectedIndex,
+    [int]$scrollOffset,
+    [int]$viewportSize
   )
 
   $esc = [char]27
   $cyan = "$esc[36m"
   $yellow = "$esc[33m"
+  $dim = "$esc[2m"
   $reset = "$esc[0m"
   $width = (Get-Host).UI.RawUI.WindowSize.Width
-  $buf = [System.Text.StringBuilder]::new(2048)
+  $buf = [System.Text.StringBuilder]::new(4096)
 
-  $line = ("=" * 60).PadRight($width)
+  # Cursor home — del av strengen for atomisk write
+  [void]$buf.Append("$esc[H")
+
+  $line = ("=" * [Math]::Min(60, $width)).PadRight($width)
   [void]$buf.AppendLine($line)
   [void]$buf.AppendLine(("  UTSKRIFTSINNSTILLINGER").PadRight($width))
   [void]$buf.AppendLine($line)
   [void]$buf.AppendLine(("  Printer: $printer").PadRight($width))
-  [void]$buf.AppendLine("".PadRight($width))
 
-  for ($i = 0; $i -lt $menuItems.Count; $i++) {
+  # Scroll-indikator opp
+  if ($scrollOffset -gt 0) {
+    # $dim = 5 tegn, $reset = 4 tegn = 9 usynlige tegn
+    [void]$buf.AppendLine("$dim  ... $scrollOffset til over ...$reset".PadRight($width + 9))
+  } else {
+    [void]$buf.AppendLine("".PadRight($width))
+  }
+
+  # Tegn kun synlige elementer
+  $endIndex = [Math]::Min($scrollOffset + $viewportSize, $menuItems.Count)
+  for ($i = $scrollOffset; $i -lt $endIndex; $i++) {
     $item = $menuItems[$i]
     if ($item.Type -eq "header") {
       [void]$buf.AppendLine("$yellow  $($item.Label)$reset".PadRight($width + 9))
@@ -150,7 +166,20 @@ function Build-MenuBuffer {
     }
   }
 
-  [void]$buf.AppendLine("".PadRight($width))
+  # Fyll ut resten av viewport med tomme linjer
+  $rendered = $endIndex - $scrollOffset
+  for ($j = $rendered; $j -lt $viewportSize; $j++) {
+    [void]$buf.AppendLine("".PadRight($width))
+  }
+
+  # Scroll-indikator ned
+  $remaining = $menuItems.Count - $endIndex
+  if ($remaining -gt 0) {
+    [void]$buf.AppendLine("$dim  ... $remaining til under ...$reset".PadRight($width + 9))
+  } else {
+    [void]$buf.AppendLine("".PadRight($width))
+  }
+
   [void]$buf.AppendLine(("  Piltaster: naviger | Mellomrom: endre valg").PadRight($width))
   [void]$buf.AppendLine(("  Enter: start utskrift | Esc: avbryt").PadRight($width))
   [void]$buf.Append($line)
@@ -161,6 +190,7 @@ function Build-MenuBuffer {
 # Interaktiv innstillingsmeny (TUI).
 # Tar over hele terminalen med alternativ skjermbuffer (som vim/htop).
 # Skjermbildet bygges som én streng og skrives i ett Console.Write()-kall.
+# Støtter scrolling for lange lister.
 function Show-PrintSettings {
   param (
     [string]$printer,
@@ -184,13 +214,23 @@ function Show-PrintSettings {
   $originalCursorVisible = [Console]::CursorVisible
   [Console]::CursorVisible = $false
 
+  # Beregn viewport: terminalhøyde minus header (5) og footer (4)
+  $windowHeight = (Get-Host).UI.RawUI.WindowSize.Height
+  $chromeLines = 9  # 4 header + 1 scroll-opp + 1 scroll-ned + 3 footer
+  $viewportSize = [Math]::Max(3, $windowHeight - $chromeLines)
+
+  # Scroll-offset: sørg for at valgt element alltid er synlig
+  $scrollOffset = 0
+  if ($selectedIndex -ge $viewportSize) {
+    $scrollOffset = $selectedIndex - $viewportSize + 1
+  }
+
   # Bytt til alternativ skjermbuffer (bevarer original terminalinnhold)
   [Console]::Write("$esc[?1049h")
 
   try {
     # Tegn menyen første gang
-    [Console]::SetCursorPosition(0, 0)
-    $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex
+    $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -scrollOffset $scrollOffset -viewportSize $viewportSize
     [Console]::Write($buffer)
 
     # Inputløkke med batched tastetrykk
@@ -229,8 +269,15 @@ function Show-PrintSettings {
       } while ([Console]::KeyAvailable)
 
       if ($needsRedraw) {
-        [Console]::SetCursorPosition(0, 0)
-        $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex
+        # Juster scroll-offset slik at valgt element alltid er synlig
+        if ($selectedIndex -lt $scrollOffset) {
+          $scrollOffset = $selectedIndex
+        }
+        if ($selectedIndex -ge $scrollOffset + $viewportSize) {
+          $scrollOffset = $selectedIndex - $viewportSize + 1
+        }
+
+        $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -scrollOffset $scrollOffset -viewportSize $viewportSize
         [Console]::Write($buffer)
       }
     }
