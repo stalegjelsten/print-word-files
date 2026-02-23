@@ -83,103 +83,131 @@ Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fi
 # Funksjon for interaktiv innstillingsmeny (TUI)
 # Viser filer og innstillinger som brukeren kan markere/avmarkere.
 # Navigér med piltaster, endre valg med mellomrom, bekreft med Enter, avbryt med Esc.
-# Menyelementer har Type: "header" (ikke valgbar), "separator" (tom linje), eller
-# "item" (valgbar, med Checked, Label, og valgfri Detail).
+# Kun de linjene som faktisk endrer seg tegnes på nytt (ingen full redraw).
 function Show-PrintSettings {
   param (
     [string]$printer,
     [object[]]$menuItems
   )
 
-  # Finn første valgbare element
-  $selectedIndex = 0
+  # Finn startvalg: første innstilling, ellers første valgbare
+  $selectedIndex = -1
+  $firstSelectable = -1
   for ($i = 0; $i -lt $menuItems.Count; $i++) {
     if ($menuItems[$i].Selectable) {
-      $selectedIndex = $i
-      break
+      if ($firstSelectable -eq -1) { $firstSelectable = $i }
+      if ($menuItems[$i].Key -and $selectedIndex -eq -1) { $selectedIndex = $i }
     }
   }
+  if ($selectedIndex -eq -1) { $selectedIndex = $firstSelectable }
+
+  # Beregn linjeposisjon for hvert menyelement (hvert element = 1 linje)
+  $headerLines = 5
+  $lineOffsets = New-Object int[] $menuItems.Count
+  for ($i = 0; $i -lt $menuItems.Count; $i++) {
+    $lineOffsets[$i] = $headerLines + $i
+  }
+  $totalLines = $headerLines + $menuItems.Count + 4
 
   $menuTop = [Console]::CursorTop
   $originalCursorVisible = [Console]::CursorVisible
   [Console]::CursorVisible = $false
-  $firstRender = $true
+
+  # Scriptblock for å tegne én valgbar linje uten å tegne hele menyen på nytt
+  $renderLine = {
+    param([int]$idx, [bool]$isSelected)
+    $item = $menuItems[$idx]
+    [Console]::SetCursorPosition(0, $menuTop + $lineOffsets[$idx])
+    $check = if ($item.Checked) { "X" } else { " " }
+    $pointer = if ($isSelected) { ">" } else { " " }
+    $text = "  $pointer [$check] $($item.Label)"
+    if ($item.Detail) { $text += "  [$($item.Detail)]" }
+    $text = $text.PadRight(60)
+    if ($isSelected) {
+      $saved = [Console]::ForegroundColor
+      [Console]::ForegroundColor = [ConsoleColor]::Cyan
+      [Console]::Write($text)
+      [Console]::ForegroundColor = $saved
+    } else {
+      [Console]::Write($text)
+    }
+  }
 
   try {
+    # --- Første rendering (full tegning) ---
+    Write-Host "============================================================"
+    Write-Host "  UTSKRIFTSINNSTILLINGER"
+    Write-Host "============================================================"
+    Write-Host "  Printer: $printer"
+    Write-Host ""
+
+    for ($i = 0; $i -lt $menuItems.Count; $i++) {
+      $item = $menuItems[$i]
+      if ($item.Type -eq "header") {
+        Write-Host "  $($item.Label)" -ForegroundColor Yellow
+      }
+      elseif ($item.Type -eq "separator") {
+        Write-Host ""
+      }
+      elseif ($item.Selectable) {
+        $check = if ($item.Checked) { "X" } else { " " }
+        $pointer = if ($i -eq $selectedIndex) { ">" } else { " " }
+        $text = "  $pointer [$check] $($item.Label)"
+        if ($item.Detail) { $text += "  [$($item.Detail)]" }
+        $text = $text.PadRight(60)
+        if ($i -eq $selectedIndex) {
+          Write-Host $text -ForegroundColor Cyan
+        } else {
+          Write-Host $text
+        }
+      }
+    }
+
+    Write-Host ""
+    Write-Host "  Piltaster: naviger | Mellomrom: endre valg"
+    Write-Host "  Enter: start utskrift | Esc: avbryt"
+    Write-Host "============================================================"
+
+    # Juster menuTop etter eventuell konsoll-scroll
+    $menuTop = [Console]::CursorTop - $totalLines
+    if ($menuTop -lt 0) { $menuTop = 0 }
+
+    # --- Inputløkke (kun delvis oppdatering av endrede linjer) ---
     while ($true) {
-      [Console]::SetCursorPosition(0, $menuTop)
-
-      $lineCount = 0
-      Write-Host "============================================================"; $lineCount++
-      Write-Host "  UTSKRIFTSINNSTILLINGER"; $lineCount++
-      Write-Host "============================================================"; $lineCount++
-      Write-Host "  Printer: $($printer.PadRight(50))"; $lineCount++
-      Write-Host ""; $lineCount++
-
-      for ($i = 0; $i -lt $menuItems.Count; $i++) {
-        $item = $menuItems[$i]
-
-        if ($item.Type -eq "header") {
-          Write-Host "  $($item.Label.PadRight(56))" -ForegroundColor Yellow
-          $lineCount++
-        }
-        elseif ($item.Type -eq "separator") {
-          Write-Host ""
-          $lineCount++
-        }
-        elseif ($item.Selectable) {
-          $check = if ($item.Checked) { "X" } else { " " }
-          $pointer = if ($i -eq $selectedIndex) { ">" } else { " " }
-
-          if ($item.Detail) {
-            $text = "  $pointer [$check] $($item.Label)  [$($item.Detail)]"
-          } else {
-            $text = "  $pointer [$check] $($item.Label)"
-          }
-          $text = $text.PadRight(60)
-
-          if ($i -eq $selectedIndex) {
-            Write-Host $text -ForegroundColor Cyan
-          } else {
-            Write-Host $text
-          }
-          $lineCount++
-        }
-      }
-
-      Write-Host ""; $lineCount++
-      Write-Host "  Piltaster: naviger | Mellomrom: endre valg"; $lineCount++
-      Write-Host "  Enter: start utskrift | Esc: avbryt"; $lineCount++
-      Write-Host "============================================================"; $lineCount++
-
-      # Etter første rendering, juster menuTop i tilfelle konsollen scrollet
-      if ($firstRender) {
-        $menuTop = [Console]::CursorTop - $lineCount
-        if ($menuTop -lt 0) { $menuTop = 0 }
-        $firstRender = $false
-      }
-
       $key = [Console]::ReadKey($true)
 
       switch ($key.Key) {
         "UpArrow" {
+          $prev = $selectedIndex
           $next = $selectedIndex - 1
           while ($next -ge 0 -and -not $menuItems[$next].Selectable) { $next-- }
-          if ($next -ge 0) { $selectedIndex = $next }
+          if ($next -ge 0) {
+            $selectedIndex = $next
+            & $renderLine $prev $false
+            & $renderLine $selectedIndex $true
+          }
         }
         "DownArrow" {
+          $prev = $selectedIndex
           $next = $selectedIndex + 1
           while ($next -lt $menuItems.Count -and -not $menuItems[$next].Selectable) { $next++ }
-          if ($next -lt $menuItems.Count) { $selectedIndex = $next }
+          if ($next -lt $menuItems.Count) {
+            $selectedIndex = $next
+            & $renderLine $prev $false
+            & $renderLine $selectedIndex $true
+          }
         }
         "Spacebar" {
           $menuItems[$selectedIndex].Checked = -not $menuItems[$selectedIndex].Checked
+          & $renderLine $selectedIndex $true
         }
         "Enter" {
+          [Console]::SetCursorPosition(0, $menuTop + $totalLines)
           Write-Host ""
           return $true
         }
         "Escape" {
+          [Console]::SetCursorPosition(0, $menuTop + $totalLines)
           Write-Host ""
           return $false
         }
