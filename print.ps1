@@ -80,39 +80,62 @@ Write-Host "Dette programmet skriver ut *alle* Word, PDF, HTML filer og bilder i
 Write-Host "Printeren som er valgt er: $CONFIG_PRINTER"
 Write-Host "Du kan bytte til en annen printer ved å redigere linje 6 i denne fila."
 
-# Tegner hele menyen på nytt fra toppen.
-# Returnerer antall konsoll-linjer som ble tegnet.
-# Teknikk basert på PSMenu (MIT): full redraw med skjult markør,
-# linjeutfylling til vindusbredde, og batched tastetrykk.
-function Write-PrintMenu {
+# Aktiverer ANSI/VT escape-koder i Windows-konsollen.
+# Kreves for farger via escape-sekvenser og alternativ skjermbuffer.
+function Enable-VirtualTerminal {
+  $vtCode = @"
+  using System;
+  using System.Runtime.InteropServices;
+  public class VT {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetStdHandle(int h);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetConsoleMode(IntPtr h, out uint m);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetConsoleMode(IntPtr h, uint m);
+  }
+"@
+  try {
+    Add-Type -TypeDefinition $vtCode -ErrorAction Stop
+  } catch {
+    # Typen kan allerede være registrert fra en tidligere kjøring
+  }
+  $handle = [VT]::GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+  $mode = 0
+  [VT]::GetConsoleMode($handle, [ref]$mode) | Out-Null
+  [VT]::SetConsoleMode($handle, $mode -bor 0x0004) | Out-Null  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+}
+
+# Bygger hele menyskjermbildet som én streng med ANSI-fargekoder.
+# Returnerer strengen klar til å skrives til konsollen i ett kall.
+function Build-MenuBuffer {
   param(
     [string]$printer,
     [object[]]$menuItems,
-    [int]$selectedIndex,
-    [int]$previousHeight
+    [int]$selectedIndex
   )
 
-  # Flytt markøren til toppen av menyområdet for å skrive over forrige tegning
-  if ($previousHeight -gt 0) {
-    [Console]::SetCursorPosition(0, [Math]::Max(0, [Console]::CursorTop - $previousHeight))
-  }
-
+  $esc = [char]27
+  $cyan = "$esc[36m"
+  $yellow = "$esc[33m"
+  $reset = "$esc[0m"
   $width = (Get-Host).UI.RawUI.WindowSize.Width
-  $height = 0
+  $buf = [System.Text.StringBuilder]::new(2048)
 
-  Write-Host ("=" * 60).PadRight($width); $height++
-  Write-Host ("  UTSKRIFTSINNSTILLINGER").PadRight($width); $height++
-  Write-Host ("=" * 60).PadRight($width); $height++
-  Write-Host ("  Printer: $printer").PadRight($width); $height++
-  Write-Host "".PadRight($width); $height++
+  $line = ("=" * 60).PadRight($width)
+  [void]$buf.AppendLine($line)
+  [void]$buf.AppendLine(("  UTSKRIFTSINNSTILLINGER").PadRight($width))
+  [void]$buf.AppendLine($line)
+  [void]$buf.AppendLine(("  Printer: $printer").PadRight($width))
+  [void]$buf.AppendLine("".PadRight($width))
 
   for ($i = 0; $i -lt $menuItems.Count; $i++) {
     $item = $menuItems[$i]
     if ($item.Type -eq "header") {
-      Write-Host ("  $($item.Label)").PadRight($width) -ForegroundColor Yellow
+      [void]$buf.AppendLine("$yellow  $($item.Label)$reset".PadRight($width + 9))
     }
     elseif ($item.Type -eq "separator") {
-      Write-Host "".PadRight($width)
+      [void]$buf.AppendLine("".PadRight($width))
     }
     elseif ($item.Selectable) {
       $check = if ($item.Checked) { "X" } else { " " }
@@ -120,25 +143,24 @@ function Write-PrintMenu {
       $text = "  $pointer [$check] $($item.Label)"
       if ($item.Detail) { $text += "  [$($item.Detail)]" }
       if ($i -eq $selectedIndex) {
-        Write-Host $text.PadRight($width) -ForegroundColor Cyan
+        [void]$buf.AppendLine("$cyan$($text.PadRight($width))$reset")
       } else {
-        Write-Host $text.PadRight($width)
+        [void]$buf.AppendLine($text.PadRight($width))
       }
     }
-    $height++
   }
 
-  Write-Host "".PadRight($width); $height++
-  Write-Host ("  Piltaster: naviger | Mellomrom: endre valg").PadRight($width); $height++
-  Write-Host ("  Enter: start utskrift | Esc: avbryt").PadRight($width); $height++
-  Write-Host ("=" * 60).PadRight($width); $height++
+  [void]$buf.AppendLine("".PadRight($width))
+  [void]$buf.AppendLine(("  Piltaster: naviger | Mellomrom: endre valg").PadRight($width))
+  [void]$buf.AppendLine(("  Enter: start utskrift | Esc: avbryt").PadRight($width))
+  [void]$buf.Append($line)
 
-  return $height
+  return $buf.ToString()
 }
 
 # Interaktiv innstillingsmeny (TUI).
-# Viser filer og innstillinger som brukeren kan markere/avmarkere.
-# Navigér med piltaster, endre valg med mellomrom, bekreft med Enter, avbryt med Esc.
+# Tar over hele terminalen med alternativ skjermbuffer (som vim/htop).
+# Skjermbildet bygges som én streng og skrives i ett Console.Write()-kall.
 function Show-PrintSettings {
   param (
     [string]$printer,
@@ -156,19 +178,25 @@ function Show-PrintSettings {
   }
   if ($selectedIndex -eq -1) { $selectedIndex = $firstSelectable }
 
+  $esc = [char]27
+  Enable-VirtualTerminal
+
   $originalCursorVisible = [Console]::CursorVisible
   [Console]::CursorVisible = $false
-  $menuHeight = 0
+
+  # Bytt til alternativ skjermbuffer (bevarer original terminalinnhold)
+  [Console]::Write("$esc[?1049h")
 
   try {
-    # Første rendering
-    $menuHeight = Write-PrintMenu -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -previousHeight 0
+    # Tegn menyen første gang
+    [Console]::SetCursorPosition(0, 0)
+    $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex
+    [Console]::Write($buffer)
 
     # Inputløkke med batched tastetrykk
     while ($true) {
       $needsRedraw = $false
 
-      # Les og behandle alle bufrede tastetrykk før redraw
       do {
         $press = (Get-Host).UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         $vk = $press.VirtualKeyCode
@@ -200,12 +228,15 @@ function Show-PrintSettings {
         }
       } while ([Console]::KeyAvailable)
 
-      # Tegn menyen på nytt bare hvis noe endret seg
       if ($needsRedraw) {
-        $menuHeight = Write-PrintMenu -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -previousHeight $menuHeight
+        [Console]::SetCursorPosition(0, 0)
+        $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex
+        [Console]::Write($buffer)
       }
     }
   } finally {
+    # Bytt tilbake til original skjermbuffer
+    [Console]::Write("$esc[?1049l")
     [Console]::CursorVisible = $originalCursorVisible
   }
 }
