@@ -137,8 +137,7 @@ function Build-MenuBuffer {
 
   # Scroll-indikator opp
   if ($scrollOffset -gt 0) {
-    # $dim = 5 tegn, $reset = 4 tegn = 9 usynlige tegn
-    [void]$buf.AppendLine("$dim  ... $scrollOffset til over ...$reset".PadRight($width + 9))
+    [void]$buf.AppendLine("$dim$("  ... $scrollOffset til over ...".PadRight($width))$reset")
   } else {
     [void]$buf.AppendLine("".PadRight($width))
   }
@@ -148,7 +147,7 @@ function Build-MenuBuffer {
   for ($i = $scrollOffset; $i -lt $endIndex; $i++) {
     $item = $menuItems[$i]
     if ($item.Type -eq "header") {
-      [void]$buf.AppendLine("$yellow  $($item.Label)$reset".PadRight($width + 9))
+      [void]$buf.AppendLine("$yellow$("  $($item.Label)".PadRight($width))$reset")
     }
     elseif ($item.Type -eq "separator") {
       [void]$buf.AppendLine("".PadRight($width))
@@ -175,7 +174,7 @@ function Build-MenuBuffer {
   # Scroll-indikator ned
   $remaining = $menuItems.Count - $endIndex
   if ($remaining -gt 0) {
-    [void]$buf.AppendLine("$dim  ... $remaining til under ...$reset".PadRight($width + 9))
+    [void]$buf.AppendLine("$dim$("  ... $remaining til under ...".PadRight($width))$reset")
   } else {
     [void]$buf.AppendLine("".PadRight($width))
   }
@@ -220,9 +219,11 @@ function Show-PrintSettings {
   $viewportSize = [Math]::Max(3, $windowHeight - $chromeLines)
 
   # Scroll-offset: sørg for at valgt element alltid er synlig
+  # Scroll-margin: holder 2 linjer kontekst over/under valgt element
+  $scrollMargin = 2
   $scrollOffset = 0
-  if ($selectedIndex -ge $viewportSize) {
-    $scrollOffset = $selectedIndex - $viewportSize + 1
+  if ($selectedIndex -gt $viewportSize - $scrollMargin - 1) {
+    $scrollOffset = [Math]::Min($selectedIndex - $viewportSize + $scrollMargin + 1, [Math]::Max(0, $menuItems.Count - $viewportSize))
   }
 
   # Bytt til alternativ skjermbuffer (bevarer original terminalinnhold)
@@ -269,12 +270,12 @@ function Show-PrintSettings {
       } while ([Console]::KeyAvailable)
 
       if ($needsRedraw) {
-        # Juster scroll-offset slik at valgt element alltid er synlig
-        if ($selectedIndex -lt $scrollOffset) {
-          $scrollOffset = $selectedIndex
+        # Juster scroll-offset med margin slik at kontekst rundt valgt element er synlig
+        if ($selectedIndex -lt $scrollOffset + $scrollMargin) {
+          $scrollOffset = [Math]::Max(0, $selectedIndex - $scrollMargin)
         }
-        if ($selectedIndex -ge $scrollOffset + $viewportSize) {
-          $scrollOffset = $selectedIndex - $viewportSize + 1
+        if ($selectedIndex -ge $scrollOffset + $viewportSize - $scrollMargin) {
+          $scrollOffset = [Math]::Min($selectedIndex - $viewportSize + $scrollMargin + 1, [Math]::Max(0, $menuItems.Count - $viewportSize))
         }
 
         $buffer = Build-MenuBuffer -printer $printer -menuItems $menuItems -selectedIndex $selectedIndex -scrollOffset $scrollOffset -viewportSize $viewportSize
