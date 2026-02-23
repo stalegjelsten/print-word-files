@@ -85,12 +85,12 @@ PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en tekn
   inset: 1em,
   radius: 0.3em,
 )[
-  *Viktig:* Originaldokumentene endres IKKE. Før utskriften starter får du velge om du vil legge til topptekst og bunntekst på Word-filer og HTML-filer:
+  *Viktig:* Originaldokumentene endres IKKE. Før utskriften starter vises en interaktiv meny hvor du kan velge innstillinger:
 
-  - *Elevens navn* øverst (mappenavnet fra zip-filen)
-  - *Sidenummer* nederst (format: "Side 1 av 5")
+  - *Topptekst og bunntekst*: elevens navn øverst (mappenavnet) og sidenummer nederst (format: "Side 1 av 5")
+  - *Kommentarer*: om kommentarer i Word-dokumenter skal skrives ut
 
-  Standardinnstillngen legger til topptekst og bunntekst (tast #kbd[Enter]), men du kan velge å hoppe over dette ved å skrive #kbd[n] og taste #kbd[Enter].
+  Standardinnstillingen legger til topptekst og bunntekst. Bruk piltastene og #kbd[Space] for å endre innstillingene, og tast #kbd[Enter] for å starte utskriften.
 ]
 
 = Hvordan bruke programmet
@@ -121,17 +121,21 @@ Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra.
 
 + Åpne mappen hvor du lagret `print.ps1`.
 + Høyreklikk på `print.ps1` og velg *"Kjør med PowerShell"* eller *"Run with PowerShell"*
-  - Et vindu åpnes. Les informasjonen som vises
+  - Et vindu åpnes med informasjon om hvilken printer som er valgt
 + Det åpnes automatisk et vindu hvor du kan velge enten:
   - *Zip-filen* du lastet ned fra itslearning
   - *En mappe* som inneholder dokumenter
 + Velg filen eller mappen og klikk OK
-+ Programmet viser en oversikt over alle filer som skal skrives ut
-+ Du blir spurt om du vil legge til mappenavn og sidenummer på utskriftene (tast #kbd[Enter] for ja, eller skriv #kbd[n] og tast #kbd[Enter] for nei)
-+ Programmet skriver nå ut alle dokumenter og bilder
-+ Når det er ferdig får du spørsmål om du vil opprette en snarvei til programmet på skrivebordet 
-  - Denne nye snarveien kan du dobbeltklikke på for å kjøre programmet, istedenfor at du trenger å høyreklikke og velge "Kjør med PowerShell"
-+ Tast #kbd[Enter] for å lukke vinduet
++ Programmet skanner filene og viser en interaktiv meny
++ I menyen kan du:
+  - Avhuke enkeltfiler du *ikke* vil skrive ut med #kbd[Space]
+  - Slå av/på *topptekst og bunntekst* (mappenavn + sidenummer)
+  - Slå av/på utskrift av *kommentarer* i Word-dokumenter
+  - Navigere med #kbd[↑] og #kbd[↓]
++ Tast #kbd[Enter] for å starte utskriften, eller #kbd[Esc] for å avbryte
++ Programmet skriver ut filene og viser fremdrift i terminalen
++ Når det er ferdig vises en oppsummering -- tast #kbd[Enter] for å lukke vinduet
+  - Første gang programmet kjøres får du spørsmål om å opprette en snarvei på skrivebordet. Snarveien gjør at du kan dobbeltklikke for å kjøre programmet direkte.
 
 = Krav
 
@@ -184,6 +188,6 @@ Kontroller at Microsoft Word er installert på datamaskinen.
 Hvis du takker nei til å opprette en snarvei til programmet på skrivebordet så opprettes det en spesiell fil på maskinen din som heter `.no-shortcut-prompt`. Hvis denne filen eksisterer så vil ikke programmet spørre deg om du vil opprette snarveien på skrivebordet. Det er ufarlig å slette filen.
 
 = Kontakt og lisens
-Programmet er utviklet av #link("https://github.com/stalegjelsten")[Ståle Gjelsten]. Funksjonene for å skrive ut PDF-filer, å kombinere HTML-filer og å legge til topp- og bunntekst er utviklet sammen med språkmodellen #link("https://www.anthropic.com/claude/sonnet")[Claude Sonnet 4.5 fra Anthropic]. 
+Programmet er utviklet av #link("https://github.com/stalegjelsten")[Ståle Gjelsten]. Funksjonene for å skrive ut PDF-filer, å kombinere HTML-filer , å legge til topp- og bunntekst og menysystemet er utviklet sammen med språkmodellen #link("https://www.anthropic.com/claude/sonnet")[Claude Sonnet 4.6 fra Anthropic].
 
 Programmet er lisensiert med #link("https://opensource.org/license/MIT")[MIT-lisens], som betyr at det kan fritt brukes, endres og deles videre. Programmet leveres "som det er", og uten noen form for garantier.

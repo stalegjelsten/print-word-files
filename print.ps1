@@ -18,13 +18,13 @@ $CONFIG_PRINTER = "\\TDCSPRN30\Sikker_UtskriftCS"  # Printernavn
 # HVORDAN KJØRE SKRIPTET:
 # 1. Høyreklikk på filen og velg "Kjør med PowerShell"
 #    ELLER
-# 2. Åpne PowerShell, naviger til mappen og skriv: .\print_forbedret_v2.ps1
+# 2. Åpne PowerShell, naviger til mappen og skriv: .\print.ps1
 #
 # FØRSTE GANG DU KJØRER SKRIPTET:
-# Hvis du får en feilmelding om "execution policy", må du åpne PowerShell 
-# som administrator og kjøre følgende kommando:
+# Hvis du får en feilmelding om "execution policy", åpne PowerShell
+# (trenger IKKE administrator) og kjør:
 #    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-# Svar "Y" (Yes) på spørsmålet som kommer opp.
+# Svar "J" (Ja) på spørsmålet som kommer opp.
 #
 # KRAV FOR PDF-UTSKRIFT:
 # Skriptet krever at Adobe Acrobat Reader er installert for automatisk 
@@ -45,7 +45,7 @@ $CONFIG_PRINTER = "\\TDCSPRN30\Sikker_UtskriftCS"  # Printernavn
 # - Alle filer i valgt mappe OG undermapper blir skrevet ut
 #
 # ENDRE PRINTER:
-# Bytt printernavn på linje under (der det står $printer = ...)
+# Bytt ut verdien til $CONFIG_PRINTER øverst i filen (linje 6)
 #
 # ============================================================================
 
@@ -140,9 +140,6 @@ function Show-Summary {
   }
 }
 
-# Setter fargemodus på printer via Win32 DocumentProperties/SetPrinter (krever ikke admin).
-# ColorValue: 1 = DMCOLOR_MONOCHROME, 2 = DMCOLOR_COLOR.
-# Returnerer original dmColor-verdi.
 # Bygger hele menyskjermbildet som én streng med ANSI-fargekoder.
 # Støtter scrolling: viser kun elementer innenfor viewport ($scrollOffset).
 # Hele strengen inkludert cursor-home skrives i ett Console.Write()-kall.
@@ -832,7 +829,8 @@ if ($selectedPath -ne $null)
   if ($wordFiles.Count -gt 0) {
     $menuItems += @{ Type = "item"; Label = "Skriv ut kommentarer i Word-dokumenter"; Checked = $false; Selectable = $true; Key = "comments" }
   }
-  $menuItems += @{ Type = "info"; Label = "Tips: Vil du skrive ut i svart-hvitt? Still inn svart-hvitt som standard under Printerinnstillinger i Windows."; Selectable = $false }
+  $menuItems += @{ Type = "info"; Label = "Tips: Svart-hvitt? Gå til Innstillinger (trykk Windows + I) › Skrivere og skannere › $CONFIG_PRINTER ›
+  Utskriftsinnstillinger"; Selectable = $false }
 
   # Vis interaktiv innstillingsmeny
   $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems

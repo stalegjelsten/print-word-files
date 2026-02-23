@@ -19,11 +19,7 @@ For hver mappe kombineres alle HTML-filer (.html, .htm), bilder (.jpg, .jpeg, .p
 ### 3. PDF-filer (.pdf)
 PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en teknisk begrensning).
 
-**Viktig:** Originaldokumentene dine endres IKKE. Før utskriften starter får du velge om du vil legge til topptekst og bunntekst på Word-filer og HTML-filer:
-- **Elevens navn** øverst (mappenavnet fra zip-filen)
-- **Sidenummer** nederst (format: "Side 1 av 5")
-
-Standard er å legge til topptekst og bunntekst (trykk bare Enter), men du kan velge å hoppe over dette ved å skrive 'n'.
+**Viktig:** Originaldokumentene dine endres IKKE.
 
 ## Hvordan bruke programmet
 
@@ -42,22 +38,34 @@ Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra
 
 1. Vis kun elevene som har levert oppgaven ved å velge **Vis:** **Levert**
 2. **Merk alle elevene** du vil skrive ut besvarelser for (huk av øverst for å velge alle)
-3. Klikk på **Handlinger** 
-4. **"Last ned besvarelser"** 
+3. Klikk på **Handlinger**
+4. **"Last ned besvarelser"**
 5. En zip-fil lastes ned til datamaskinen din (vanligvis i Nedlastinger-mappen)
 
 ### Steg 2: Kjør utskriftsprogrammet
 
 1. Høyreklikk på `print.ps1` og velg **"Kjør med PowerShell"** eller **"Run with PowerShell"**
-2. Et vindu åpnes. Les informasjonen som vises
-3. Det åpnes automatisk et vindu hvor du kan velge enten:
+2. Et vindu åpnes med informasjon om printeren som er valgt
+3. En dialogboks åpnes hvor du velger enten:
    - **Zip-filen** du lastet ned fra itslearning (anbefalt)
    - **En mappe** som inneholder dokumenter
 4. Velg filen/mappen og klikk OK
-5. Programmet viser en oversikt over alle filer som skal skrives ut
-6. Du blir spurt om du vil legge til mappenavn og sidenummer på utskriftene (trykk Enter for ja, eller skriv 'n' for nei)
-7. Programmet skriver nå ut alle dokumenter og bilder
-8. Når det er ferdig, trykk Enter for å lukke vinduet
+5. Programmet skanner filene og viser en interaktiv meny
+
+### Steg 3: Velg innstillinger i menyen
+
+Programmet viser en meny hvor du kan:
+- **Avhuke enkeltfiler** du ikke vil skrive ut (pil opp/ned + mellomrom)
+- **Slå av/på topptekst og bunntekst** (mappenavn + sidenummer)
+- **Slå av/på utskrift av kommentarer** i Word-dokumenter
+
+Trykk **Enter** for å starte utskriften, eller **Esc** for å avbryte.
+
+### Steg 4: Utskriften kjører
+
+Programmet skriver ut filene én etter én og viser fremdrift i terminalen.
+
+Når utskriften er ferdig vises en oppsummering. Trykk **Enter** for å avslutte.
 
 ## Krav
 
@@ -75,7 +83,7 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 - **Linje 5** (`$CONFIG_IMAGE_WIDTH_CM`): Endre maksimal bildebredde i centimeter (standard: 17.0 cm)
 - **Linje 6** (`$CONFIG_PRINTER`): Endre hvilken printer som skal brukes
 
-**Standard printer er:** `\\TDCSOM30\Sikker_UtskriftCS`
+**Standard printer er:** `\\TDCSPRN30\Sikker_UtskriftCS`
 
 ## Feilsøking
 
