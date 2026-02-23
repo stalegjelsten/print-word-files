@@ -106,6 +106,40 @@ function Enable-VirtualTerminal {
   [VT]::SetConsoleMode($handle, $mode -bor 0x0004) | Out-Null  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
 }
 
+# Viser oppsummering i alternate screen buffer og venter på at brukeren trykker Enter.
+function Show-Summary {
+  param([string[]]$Lines, [bool]$HasErrors = $false)
+  $esc = [char]27
+  Enable-VirtualTerminal
+  $origCursor = [Console]::CursorVisible
+  [Console]::CursorVisible = $false
+  [Console]::Write("$esc[?1049h")
+  try {
+    $width = (Get-Host).UI.RawUI.WindowSize.Width
+    $yellow = "$esc[33m"; $green = "$esc[32m"; $red = "$esc[31m"; $dim = "$esc[2m"; $reset = "$esc[0m"
+    $titleColor = if ($HasErrors) { $red } else { $green }
+    $title = if ($HasErrors) { "  UTSKRIFT FULLFORT MED FEIL" } else { "  UTSKRIFT FULLFORT" }
+    $buf = [System.Text.StringBuilder]::new(2048)
+    [void]$buf.Append("$esc[H")
+    [void]$buf.AppendLine("$yellow$("=" * $width)$reset")
+    [void]$buf.AppendLine("$titleColor$($title.PadRight($width))$reset")
+    [void]$buf.AppendLine("$yellow$("=" * $width)$reset")
+    [void]$buf.AppendLine("".PadRight($width))
+    foreach ($line in $Lines) {
+      [void]$buf.AppendLine(("  " + $line).PadRight($width))
+    }
+    [void]$buf.AppendLine("".PadRight($width))
+    [void]$buf.AppendLine("$dim$("  Trykk Enter for å avslutte".PadRight($width))$reset")
+    [Console]::Write($buf.ToString())
+    do {
+      $key = (Get-Host).UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    } while ($key.VirtualKeyCode -ne 0x0D)
+  } finally {
+    [Console]::Write("$esc[?1049l")
+    [Console]::CursorVisible = $origCursor
+  }
+}
+
 # Setter fargemodus på printer via Win32 DocumentProperties/SetPrinter (krever ikke admin).
 # ColorValue: 1 = DMCOLOR_MONOCHROME, 2 = DMCOLOR_COLOR.
 # Returnerer original dmColor-verdi.
@@ -511,13 +545,11 @@ if ($selectedPath -ne $null)
 
   if ($needsWord) {
     Write-Host "Sjekker om Microsoft Word er installert..."
-    try {
-      $testWord = New-Object -ComObject Word.Application -ErrorAction Stop
-      $testWord.Quit()
-      [System.Runtime.Interopservices.Marshal]::ReleaseComObject($testWord) | Out-Null
+    $wordType = [System.Type]::GetTypeFromProgID("Word.Application")
+    if ($wordType -ne $null) {
       Write-Host "Microsoft Word funnet."
       Write-Host ""
-    } catch {
+    } else {
       Write-Host "ADVARSEL: Microsoft Word er ikke installert eller tilgjengelig."
       Write-Host "Word- og HTML-filer vil ikke bli skrevet ut."
       Write-Host ""
@@ -1020,89 +1052,70 @@ if ($selectedPath -ne $null)
     }
   }
 
+  # Bygg oppsummeringslinjer
+  $summaryLines = @()
   if ($failedFiles.Count -gt 0) {
-    Write-Host "`nFølgende filer ble ikke skrevet ut:"
-    $failedFiles | ForEach-Object { Write-Host $_ }
+    $summaryLines += "Følgende filer ble IKKE skrevet ut:"
+    $failedFiles | ForEach-Object { $summaryLines += "  - $_" }
+    $summaryLines += ""
   } else {
-    Write-Host "`n$totalFiles dokumenter skrevet ut."
+    $summaryLines += "$totalFiles dokumenter skrevet ut."
+    $summaryLines += ""
   }
+  $summaryLines += "- Word-filer: $($wordFiles.Count)"
+  $summaryLines += "- PDF-filer: $($pdfFiles.Count)"
+  $summaryLines += "- HTML-filer skrevet ut: $($htmlFilesToPrint.Count)"
+  $summaryLines += "- Bildefiler: $($imageFiles.Count)"
+  $summaryLines += "- Tekstfiler: $($textFiles.Count)"
 
-  Write-Host "`nOppsummering:"
-  Write-Host "- Word-filer: $($wordFiles.Count)"
-  Write-Host "- PDF-filer: $($pdfFiles.Count)"
-  Write-Host "- HTML-filer skrevet ut: $($htmlFilesToPrint.Count) (hvorav $($generatedHtmlFiles.Count) kombinerte)"
-  Write-Host "- Bildefiler funnet: $($imageFiles.Count)"
-  Write-Host "- Tekstfiler funnet: $($textFiles.Count)"
-
-  # Rydd opp genererte HTML-filer automatisk
+  # Rydd opp genererte HTML-filer automatisk (stille)
   if ($generatedHtmlFiles.Count -gt 0) {
-    Write-Host "`nSletter $($generatedHtmlFiles.Count) genererte HTML-fil(er)..."
     foreach ($htmlFile in $generatedHtmlFiles) {
-      Remove-Item $htmlFile.FullName -Force
-      Write-Host "  Slettet: $($htmlFile.Name)"
+      Remove-Item $htmlFile.FullName -Force -ErrorAction SilentlyContinue
     }
   }
 
-  # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
+  # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil (stille)
   if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
-    Write-Host "`nRydder opp midlertidig mappe..."
-    try {
-      Remove-Item -Path $tempExtractPath -Recurse -Force
-      Write-Host "Midlertidig mappe slettet."
-    } catch {
-      Write-Host "Kunne ikke slette midlertidig mappe: $tempExtractPath"
-      Write-Host "Du kan slette den manuelt hvis du vil."
-    }
+    Remove-Item -Path $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
   }
 
-  # Sjekk om vi skal spørre om snarvei
+  # Spør om snarvei før vi viser oppsummeringsskjermen
   $scriptPath = $PSCommandPath
   $scriptDir = Split-Path $scriptPath
   $noShortcutFile = Join-Path $scriptDir ".no-shortcut-prompt"
   $desktopPath = [Environment]::GetFolderPath("Desktop")
   $shortcutPath = Join-Path $desktopPath "Print fra itslearning.lnk"
 
-  # Spør bare om snarvei hvis:
-  # 1. Snarveien ikke allerede eksisterer OG
-  # 2. Brukeren ikke tidligere har sagt nei
   if (-not (Test-Path $shortcutPath) -and -not (Test-Path $noShortcutFile)) {
     Write-Host ""
     $createShortcut = Read-Host "Vil du opprette en snarvei til dette skriptet på skrivebordet? (J/N)"
 
     if ($createShortcut -eq "J" -or $createShortcut -eq "j") {
       try {
-        # Opprett WScript Shell-objekt for å lage snarvei
         $wshShell = New-Object -ComObject WScript.Shell
         $shortcut = $wshShell.CreateShortcut($shortcutPath)
-
-        # Sett opp snarveien til å kjøre PowerShell med scriptet
         $shortcut.TargetPath = "powershell.exe"
         $shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$scriptPath`""
         $shortcut.WorkingDirectory = $scriptDir
         $shortcut.Description = "Skriv ut elevbesvarelser automatisk"
         $shortcut.IconLocation = "powershell.exe,0"
-
-        # Lagre snarveien
         $shortcut.Save()
-
-        Write-Host "Snarvei opprettet på skrivebordet: $shortcutPath"
-
-        # Rydd opp COM-objektet
+        $summaryLines += ""
+        $summaryLines += "Snarvei opprettet på skrivebordet."
         [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wshShell) | Out-Null
       } catch {
-        Write-Host "Kunne ikke opprette snarvei: $_"
+        $summaryLines += ""
+        $summaryLines += "Kunne ikke opprette snarvei: $_"
       }
     } else {
-      # Brukeren sa nei - opprett markørfil så vi ikke spør igjen
       try {
         "" | Out-File -FilePath $noShortcutFile -Encoding UTF8
-      } catch {
-        # Ikke kritisk hvis vi ikke kan opprette filen
-      }
+      } catch { }
     }
   }
 
-  Read-Host "`nTrykk Enter for å avslutte programmet"
+  Show-Summary -Lines $summaryLines -HasErrors ($failedFiles.Count -gt 0)
 } else
 {
   Read-Host "Ingen fil eller mappe valgt. Trykk Enter for å avslutte programmet."
