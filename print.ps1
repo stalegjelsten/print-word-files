@@ -558,13 +558,9 @@ if ($selectedPath -ne $null)
       }
       Write-Host ""
     }
-  } else {
-    Write-Host "Ingen PDF-filer funnet, hopper over Adobe Reader-sjekk."
-    Write-Host ""
   }
 
   # Generer kombinerte HTML-filer for mapper med bilder og/eller tekstfiler
-  Write-Host "`nGenererer kombinerte HTML-filer for mapper med bilder og tekstfiler..."
   $generatedHtmlFiles = @()
   $foldersWithCombinedHtml = @()
 
@@ -792,8 +788,6 @@ if ($selectedPath -ne $null)
 
   # Legg til de genererte (kombinerte) HTML-filene
   $htmlFilesToPrint = @($htmlFilesToPrint) + @($generatedHtmlFiles)
-
-  Write-Host "`nFjernet $($htmlFiles.Count - $htmlFilesToPrint.Count + $generatedHtmlFiles.Count) originale HTML-filer (erstattet med kombinerte)"
 
   # Kombiner alle filer til én liste
   $allFiles = @()
