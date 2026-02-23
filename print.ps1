@@ -143,57 +143,6 @@ function Show-Summary {
 # Setter fargemodus på printer via Win32 DocumentProperties/SetPrinter (krever ikke admin).
 # ColorValue: 1 = DMCOLOR_MONOCHROME, 2 = DMCOLOR_COLOR.
 # Returnerer original dmColor-verdi.
-function Set-PrinterDevModeColor {
-  param([string]$PrinterName, [int16]$ColorValue)
-  $code = @"
-using System;
-using System.Runtime.InteropServices;
-using System.ComponentModel;
-public class PrinterColorHelper {
-  [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
-  public static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);
-  [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
-  public static extern int DocumentProperties(IntPtr wnd, IntPtr hp, string dev,
-    IntPtr dmOut, IntPtr dmIn, int fMode);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool SetPrinter(IntPtr hp, int lvl, IntPtr pi, int cmd);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool ClosePrinter(IntPtr hp);
-  public static short SetColor(string printerName, short color) {
-    IntPtr hp = IntPtr.Zero;
-    if (!OpenPrinter(printerName, out hp, IntPtr.Zero)) throw new Win32Exception();
-    try {
-      int sz = DocumentProperties(IntPtr.Zero, hp, printerName,
-        IntPtr.Zero, IntPtr.Zero, 0);
-      if (sz <= 0) throw new Exception("DocumentProperties size: " + sz);
-      IntPtr dm = Marshal.AllocHGlobal(sz);
-      try {
-        if (DocumentProperties(IntPtr.Zero, hp, printerName, dm, IntPtr.Zero, 2) < 0)
-          throw new Win32Exception();
-        short orig = Marshal.ReadInt16(dm, 92);
-        Marshal.WriteInt32(dm, 72, Marshal.ReadInt32(dm, 72) | 0x800);
-        Marshal.WriteInt16(dm, 92, color);
-        // Ikke bruk samme buffer for input og output i DocumentProperties –
-        // det kan korruptere heapen. Lagre DEVMODE direkte via SetPrinter.
-        IntPtr pi9 = Marshal.AllocHGlobal(IntPtr.Size);
-        try {
-          Marshal.WriteIntPtr(pi9, dm);
-          if (!SetPrinter(hp, 9, pi9, 0)) throw new Win32Exception();
-        } finally { Marshal.FreeHGlobal(pi9); }
-        return orig;
-      } finally { Marshal.FreeHGlobal(dm); }
-    } finally { ClosePrinter(hp); }
-  }
-}
-"@
-  try {
-    Add-Type -TypeDefinition $code -ErrorAction Stop
-  } catch {
-    # Typen kan allerede være registrert fra tidligere kjøring
-  }
-  return [PrinterColorHelper]::SetColor($PrinterName, $ColorValue)
-}
-
 # Bygger hele menyskjermbildet som én streng med ANSI-fargekoder.
 # Støtter scrolling: viser kun elementer innenfor viewport ($scrollOffset).
 # Hele strengen inkludert cursor-home skrives i ett Console.Write()-kall.
@@ -239,6 +188,9 @@ function Build-MenuBuffer {
     }
     elseif ($item.Type -eq "separator") {
       [void]$buf.AppendLine("".PadRight($width))
+    }
+    elseif ($item.Type -eq "info") {
+      [void]$buf.AppendLine("$dim$("  $($item.Label)".PadRight($width))$reset")
     }
     elseif ($item.Selectable) {
       $check = if ($item.Checked) { "X" } else { " " }
@@ -886,7 +838,7 @@ if ($selectedPath -ne $null)
   if ($wordFiles.Count -gt 0) {
     $menuItems += @{ Type = "item"; Label = "Skriv ut kommentarer i Word-dokumenter"; Checked = $false; Selectable = $true; Key = "comments" }
   }
-  $menuItems += @{ Type = "item"; Label = "Skriv ut i svart-hvitt"; Checked = $false; Selectable = $true; Key = "blackAndWhite" }
+  $menuItems += @{ Type = "info"; Label = "Tips: Vil du skrive ut i svart-hvitt? Still inn svart-hvitt som standard under Printerinnstillinger i Windows."; Selectable = $false }
 
   # Vis interaktiv innstillingsmeny
   $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems
@@ -905,24 +857,11 @@ if ($selectedPath -ne $null)
   $printWithComments = $false
   $commentsItem = $menuItems | Where-Object { $_.Key -eq "comments" }
   if ($commentsItem) { $printWithComments = $commentsItem.Checked }
-  $printBlackAndWhite = ($menuItems | Where-Object { $_.Key -eq "blackAndWhite" }).Checked
-
   # Bygg filliste basert på avkryssede filer
   $allFiles = @($menuItems | Where-Object { $_.File -and $_.Checked } | ForEach-Object { $_.File })
   $totalFiles = $allFiles.Count
 
   Write-Host "Starter utskrift av $totalFiles filer..."
-
-  # Sett printer til svart-hvitt hvis ønsket
-  $originalDmColor = $null
-  if ($printBlackAndWhite) {
-    try {
-      $originalDmColor = Set-PrinterDevModeColor -PrinterName $CONFIG_PRINTER -ColorValue 1
-      Write-Host "Printer satt til svart-hvitt."
-    } catch {
-      Write-Host "ADVARSEL: Kunne ikke sette svart-hvitt på printeren: $_"
-    }
-  }
 
   # Opprett Word-applikasjon for Word og HTML filer
   $wordApp = $null
@@ -1033,25 +972,6 @@ if ($selectedPath -ne $null)
     }
   }
 
-  # Avslutt Word-applikasjonen hvis den ble opprettet
-  if ($wordApp -ne $null) {
-    $wordApp.Quit()
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wordApp) | Out-Null
-  }
-
-  # Frigjør COM-objektressurser
-  [System.GC]::Collect()
-  [System.GC]::WaitForPendingFinalizers()
-
-  # Gjenopprett fargemodus på printeren
-  if ($printBlackAndWhite -and $originalDmColor -ne $null) {
-    try {
-      Set-PrinterDevModeColor -PrinterName $CONFIG_PRINTER -ColorValue $originalDmColor | Out-Null
-    } catch {
-      Write-Host "ADVARSEL: Kunne ikke gjenopprette fargemodus på printeren: $_"
-    }
-  }
-
   # Bygg oppsummeringslinjer
   $summaryLines = @()
   if ($failedFiles.Count -gt 0) {
@@ -1116,6 +1036,14 @@ if ($selectedPath -ne $null)
   }
 
   Show-Summary -Lines $summaryLines -HasErrors ($failedFiles.Count -gt 0)
+
+  # Avslutt Word-applikasjonen etter at oppsummeringen er vist
+  if ($wordApp -ne $null) {
+    $wordApp.Quit()
+    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wordApp) | Out-Null
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+  }
 } else
 {
   Read-Host "Ingen fil eller mappe valgt. Trykk Enter for å avslutte programmet."
