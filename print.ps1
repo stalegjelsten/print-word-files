@@ -891,7 +891,9 @@ if ($selectedPath -ne $null)
   # Innstillinger
   $menuItems += @{ Type = "separator"; Selectable = $false }
   $menuItems += @{ Type = "header"; Label = "Innstillinger:"; Selectable = $false }
-  $menuItems += @{ Type = "item"; Label = "Topptekst og bunntekst (mappenavn + sidenummer)"; Checked = $true; Selectable = $true; Key = "headerFooter" }
+  if ($wordFiles.Count -gt 0 -or $htmlFilesToPrint.Count -gt 0) {
+    $menuItems += @{ Type = "item"; Label = "Topptekst og bunntekst (mappenavn + sidenummer)"; Checked = $true; Selectable = $true; Key = "headerFooter" }
+  }
   if ($wordFiles.Count -gt 0) {
     $menuItems += @{ Type = "item"; Label = "Skriv ut kommentarer i Word-dokumenter"; Checked = $false; Selectable = $true; Key = "comments" }
   }
