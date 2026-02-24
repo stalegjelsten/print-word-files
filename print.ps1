@@ -103,6 +103,85 @@ function Enable-VirtualTerminal {
   [VT]::SetConsoleMode($handle, $mode -bor 0x0004) | Out-Null  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
 }
 
+# Rydder opp midlertidig utpakkingsmappe etter en zip-fil.
+function Remove-TempFolder {
+  param([bool]$isZipFile, [string]$tempExtractPath)
+  if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
+    Remove-Item -Path $tempExtractPath -Recurse -Force
+  }
+}
+
+# Legger til en seksjon (header + filer) i meny-listen.
+# $menuItems er en [ref] til arrayet slik at endringer reflekteres tilbake.
+function Add-FileMenuSection {
+  param([ref]$menuItems, [string]$label, [object[]]$files, [bool]$addSeparator = $true)
+  if ($files.Count -eq 0) { return }
+  if ($addSeparator -and $menuItems.Value.Count -gt 0) {
+    $menuItems.Value += @{ Type = "separator"; Selectable = $false }
+  }
+  $menuItems.Value += @{ Type = "header"; Label = "$label ($($files.Count)):"; Selectable = $false }
+  foreach ($f in $files) {
+    $menuItems.Value += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
+  }
+}
+
+# TUI-valg av kilde (ZIP-fil eller mappe).
+# Returnerer "zip", "folder" eller $null (Esc = avbryt).
+function Show-SourceSelection {
+  $esc = [char]27
+  Enable-VirtualTerminal
+  $originalCursorVisible = [Console]::CursorVisible
+  [Console]::CursorVisible = $false
+  [Console]::Write("$esc[?1049h")
+
+  $options = @("ZIP-fil fra itslearning", "Mappe med filer")
+  $selected = 0
+
+  try {
+    while ($true) {
+      $width = (Get-Host).UI.RawUI.WindowSize.Width
+      $cyan = "$esc[36m"
+      $dim = "$esc[2m"
+      $reset = "$esc[0m"
+      $buf = [System.Text.StringBuilder]::new(512)
+
+      [void]$buf.Append("$esc[H")
+      $line = ("=" * [Math]::Min(60, $width)).PadRight($width)
+      [void]$buf.AppendLine($line)
+      [void]$buf.AppendLine("  VELG KILDE".PadRight($width))
+      [void]$buf.AppendLine($line)
+      [void]$buf.AppendLine("".PadRight($width))
+
+      for ($i = 0; $i -lt $options.Count; $i++) {
+        $pointer = if ($i -eq $selected) { ">" } else { " " }
+        $radio = if ($i -eq $selected) { "(*)" } else { "( )" }
+        $text = "  $pointer $radio $($options[$i])"
+        if ($i -eq $selected) {
+          [void]$buf.AppendLine("$cyan$($text.PadRight($width))$reset")
+        } else {
+          [void]$buf.AppendLine($text.PadRight($width))
+        }
+      }
+
+      [void]$buf.AppendLine("".PadRight($width))
+      [void]$buf.AppendLine("$dim$("  Piltaster: naviger | Enter: velg | Esc: avbryt".PadRight($width))$reset")
+      [void]$buf.Append($line)
+      [Console]::Write($buf.ToString())
+
+      $press = (Get-Host).UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+      $vk = $press.VirtualKeyCode
+
+      if ($vk -eq 0x1B) { return $null }
+      if ($vk -eq 0x0D) { return @("zip", "folder")[$selected] }
+      if ($vk -eq 0x26 -and $selected -gt 0) { $selected-- }
+      if ($vk -eq 0x28 -and $selected -lt ($options.Count - 1)) { $selected++ }
+    }
+  } finally {
+    [Console]::Write("$esc[?1049l")
+    [Console]::CursorVisible = $originalCursorVisible
+  }
+}
+
 # Viser oppsummering i alternate screen buffer og venter på at brukeren trykker Enter.
 function Show-Summary {
   param([string[]]$Lines, [bool]$HasErrors = $false, [switch]$InAltScreen)
@@ -408,20 +487,13 @@ function Add-FolderNameToHeader {
 }
 
 # Spør brukeren om de vil velge en zip-fil eller en mappe
-$result = [System.Windows.Forms.MessageBox]::Show(
-  "Vil du velge en ZIP-fil fra itslearning?`n`n" +
-  "Klikk JA for å velge en zip-fil`n" +
-  "Klikk NEI for å velge en mappe",
-  "Velg filtype",
-  [System.Windows.Forms.MessageBoxButtons]::YesNoCancel,
-  [System.Windows.Forms.MessageBoxIcon]::Question
-)
+$sourceChoice = Show-SourceSelection
 
 $selectedPath = $null
 $isZipFile = $false
 $tempExtractPath = $null
 
-if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
+if ($sourceChoice -eq "zip") {
   # Brukeren vil velge en zip-fil
   $fileDialog = New-Object System.Windows.Forms.OpenFileDialog
   $fileDialog.Filter = "Zip-filer (*.zip)|*.zip"
@@ -448,7 +520,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
       exit
     }
   }
-} elseif ($result -eq [System.Windows.Forms.DialogResult]::No) {
+} elseif ($sourceChoice -eq "folder") {
   # Brukeren vil velge en mappe
   $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
   $folderBrowser.Description = "Velg mappen med filer du vil skrive ut"
@@ -457,8 +529,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
     $selectedPath = $folderBrowser.SelectedPath
   }
 } else {
-  # Brukeren kansellerte
-  Read-Host "Avbrutt. Trykk Enter for å avslutte"
+  # Brukeren trykket Esc
   exit
 }
 
@@ -484,13 +555,14 @@ if ($selectedPath -ne $null)
   # VIKTIG: Vi filtrerer bort filer som starter med punktum (.) siden disse ofte er
   # sikkerhetskopier eller skjulte systemfiler (f.eks. .~lock.dokument.docx)
   Write-Host "Skanner filer i valgt mappe..."
-  $wordFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.docx" | Where-Object { -not $_.Name.StartsWith(".") }
-  $pdfFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.pdf" | Where-Object { -not $_.Name.StartsWith(".") }
-  $htmlFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.html","*.htm" | Where-Object { -not $_.Name.StartsWith(".") }
+  $notHidden = { -not $_.Name.StartsWith(".") }
+  $wordFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.docx" | Where-Object $notHidden
+  $pdfFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.pdf" | Where-Object $notHidden
+  $htmlFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.html","*.htm" | Where-Object $notHidden
 
   # Hent alle bildefiler og tekstfiler (hopp over filer som starter med .)
-  $imageFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.jpg","*.jpeg","*.png","*.gif","*.bmp" | Where-Object { -not $_.Name.StartsWith(".") }
-  $textFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.txt" | Where-Object { -not $_.Name.StartsWith(".") }
+  $imageFiles = Get-ChildItem -Path $selectedPath -Recurse -Include "*.jpg","*.jpeg","*.png","*.gif","*.bmp" | Where-Object $notHidden
+  $textFiles = Get-ChildItem -Path $selectedPath -Recurse -Filter "*.txt" | Where-Object $notHidden
 
   Write-Host "Funnet:"
   Write-Host "  - Word-filer (.docx): $($wordFiles.Count)"
@@ -516,10 +588,7 @@ if ($selectedPath -ne $null)
       Write-Host ""
       $continue = Read-Host "Vil du fortsette uten Word-støtte? (J/N)"
       if ($continue -ne "J" -and $continue -ne "j") {
-        # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
-        if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
-          Remove-Item -Path $tempExtractPath -Recurse -Force
-        }
+        Remove-TempFolder -isZipFile $isZipFile -tempExtractPath $tempExtractPath
         exit
       }
       $wordAvailable = $false
@@ -559,10 +628,7 @@ if ($selectedPath -ne $null)
       Write-Host ""
       $continue = Read-Host "Vil du fortsette uten PDF-støtte? (J/N)"
       if ($continue -ne "J" -and $continue -ne "j") {
-        # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
-        if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
-          Remove-Item -Path $tempExtractPath -Recurse -Force
-        }
+        Remove-TempFolder -isZipFile $isZipFile -tempExtractPath $tempExtractPath
         exit
       }
       Write-Host ""
@@ -811,28 +877,9 @@ if ($selectedPath -ne $null)
   # Bygg menyelementer for TUI (filer + innstillinger)
   $menuItems = @()
 
-  if ($wordFiles.Count -gt 0) {
-    $menuItems += @{ Type = "header"; Label = "Word-filer ($($wordFiles.Count)):"; Selectable = $false }
-    foreach ($f in $wordFiles) {
-      $menuItems += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
-    }
-  }
-
-  if ($pdfFiles.Count -gt 0) {
-    $menuItems += @{ Type = "separator"; Selectable = $false }
-    $menuItems += @{ Type = "header"; Label = "PDF-filer ($($pdfFiles.Count)):"; Selectable = $false }
-    foreach ($f in $pdfFiles) {
-      $menuItems += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
-    }
-  }
-
-  if ($htmlFilesToPrint.Count -gt 0) {
-    $menuItems += @{ Type = "separator"; Selectable = $false }
-    $menuItems += @{ Type = "header"; Label = "HTML-filer ($($htmlFilesToPrint.Count)):"; Selectable = $false }
-    foreach ($f in $htmlFilesToPrint) {
-      $menuItems += @{ Type = "item"; Label = $f.Name; Detail = $f.Directory.Name; Checked = $true; Selectable = $true; File = $f }
-    }
-  }
+  Add-FileMenuSection -menuItems ([ref]$menuItems) -label "Word-filer" -files $wordFiles -addSeparator $false
+  Add-FileMenuSection -menuItems ([ref]$menuItems) -label "PDF-filer" -files $pdfFiles
+  Add-FileMenuSection -menuItems ([ref]$menuItems) -label "HTML-filer" -files $htmlFilesToPrint
 
   # Innstillinger
   $menuItems += @{ Type = "separator"; Selectable = $false }
@@ -848,10 +895,7 @@ if ($selectedPath -ne $null)
   $confirmed = Show-PrintSettings -printer $CONFIG_PRINTER -menuItems $menuItems -InAltScreen
 
   if (-not $confirmed) {
-    # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil
-    if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
-      Remove-Item -Path $tempExtractPath -Recurse -Force
-    }
+    Remove-TempFolder -isZipFile $isZipFile -tempExtractPath $tempExtractPath
     Read-Host "Avbrutt. Trykk Enter for å avslutte"
     exit
   }
@@ -1027,9 +1071,7 @@ if ($selectedPath -ne $null)
   }
 
   # Rydd opp midlertidig mappe hvis vi pakket ut en zip-fil (stille)
-  if ($isZipFile -and $tempExtractPath -ne $null -and (Test-Path $tempExtractPath)) {
-    Remove-Item -Path $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
-  }
+  Remove-TempFolder -isZipFile $isZipFile -tempExtractPath $tempExtractPath
 
   # Spør om snarvei før vi viser oppsummeringsskjermen
   $scriptPath = $PSCommandPath
