@@ -874,6 +874,13 @@ if ($selectedPath -ne $null)
   $totalFiles = $allFiles.Count
   $failedFiles = @()
 
+  if ($totalFiles -eq 0) {
+    Write-Host "Ingen utskrivbare filer funnet i valgt mappe."
+    Read-Host "Trykk Enter for å avslutte"
+    Remove-TempFolder -isZipFile $isZipFile -tempExtractPath $tempExtractPath
+    exit
+  }
+
   # Bygg menyelementer for TUI (filer + innstillinger)
   $menuItems = @()
 
