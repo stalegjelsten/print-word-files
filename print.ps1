@@ -421,6 +421,28 @@ function Get-ImageDimensions {
   }
 }
 
+# Parser mappenavnet "etternavn, fornavn andre-fornavn (epost@adresse.no)"
+# og returnerer et objekt med Etternavn, Fornavn, Epost, og SorteringsNokkel (for fornavn/etternavn).
+# Returnerer $null hvis formatet ikke gjenkjennes – bruk da mappenavnet as-is.
+function Get-StudentName {
+  param([string]$folderName)
+  # Forventet format: "Etternavn, Fornavn [Mellomnavn...] (epost@adresse.no)"
+  if ($folderName -match '^([^,]+),\s+([^(]+?)\s*\(([^)]+)\)\s*$') {
+    $etternavn = $Matches[1].Trim()
+    $alleFornavnRaw = $Matches[2].Trim()
+    $epost = $Matches[3].Trim()
+    # Første ord i navnedelen etter komma er fornavnet
+    $fornavn = ($alleFornavnRaw -split '\s+')[0]
+    return [PSCustomObject]@{
+      Etternavn   = $etternavn
+      Fornavn     = $fornavn
+      AlleFornavnRaw = $alleFornavnRaw
+      Epost       = $epost
+    }
+  }
+  return $null
+}
+
 # Funksjon for å legge til mappenavn i topptekst og sidenummer i bunntekst
 function Add-FolderNameToHeader {
   param (
@@ -888,9 +910,17 @@ if ($selectedPath -ne $null)
   Add-FileMenuSection -menuItems ([ref]$menuItems) -label "PDF-filer" -files $pdfFiles
   Add-FileMenuSection -menuItems ([ref]$menuItems) -label "HTML-filer" -files $htmlFilesToPrint
 
+  # Sjekk om noen mappenavn har formatet "etternavn, fornavn (epost)" – vis i så fall fornavn-sortering
+  $hasSortableNames = $null -ne (@($wordFiles) + @($pdfFiles) + @($htmlFilesToPrint) | Where-Object {
+    $_.Directory.Name -match ',.*\([^)]*@[^)]*\)'
+  } | Select-Object -First 1)
+
   # Innstillinger
   $menuItems += @{ Type = "separator"; Selectable = $false }
   $menuItems += @{ Type = "header"; Label = "Innstillinger:"; Selectable = $false }
+  if ($hasSortableNames) {
+    $menuItems += @{ Type = "item"; Label = "Sorter etter fornavn"; Checked = $false; Selectable = $true; Key = "sortByFirstName" }
+  }
   if ($wordFiles.Count -gt 0 -or $htmlFilesToPrint.Count -gt 0) {
     $menuItems += @{ Type = "item"; Label = "Topptekst og bunntekst (mappenavn + sidenummer)"; Checked = $true; Selectable = $true; Key = "headerFooter" }
   }
@@ -911,11 +941,23 @@ if ($selectedPath -ne $null)
 
   # Les innstillinger fra menyen
   $shouldAddHeaderFooter = ($menuItems | Where-Object { $_.Key -eq "headerFooter" }).Checked
+  $sortByFirstName = ($menuItems | Where-Object { $_.Key -eq "sortByFirstName" }).Checked
   $printWithComments = $false
   $commentsItem = $menuItems | Where-Object { $_.Key -eq "comments" }
   if ($commentsItem) { $printWithComments = $commentsItem.Checked }
   # Bygg filliste basert på avkryssede filer
   $allFiles = @($menuItems | Where-Object { $_.File -and $_.Checked } | ForEach-Object { $_.File })
+
+  # Sorter fillisten etter fornavn eller etternavn basert på menyvalget
+  if ($sortByFirstName) {
+    $allFiles = @($allFiles | Sort-Object {
+      $student = Get-StudentName $_.Directory.Name
+      if ($student) { "$($student.Fornavn) $($student.Etternavn)" } else { $_.Directory.Name }
+    })
+  } else {
+    $allFiles = @($allFiles | Sort-Object { $_.Directory.Name })
+  }
+
   $totalFiles = $allFiles.Count
 
   $width = (Get-Host).UI.RawUI.WindowSize.Width
@@ -940,8 +982,15 @@ if ($selectedPath -ne $null)
     $fileCounter++
     $fileExtension = $file.Extension.ToLower()
     
-    # Hent mappenavnet (navnet på katalogen filen ligger i)
+    # Hent mappenavnet (og bygg topptekst avhengig av sorteringsvalg)
     $folderName = $file.Directory.Name
+    if ($sortByFirstName) {
+      $student = Get-StudentName $folderName
+      if ($student) {
+        # Fornavn-sortering: vis "Fornavn [Mellomnavn] Etternavn epost"
+        $folderName = "$($student.AlleFornavnRaw) $($student.Etternavn) $($student.Epost)"
+      }
+    }
 
     try
     {
