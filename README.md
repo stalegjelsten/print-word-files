@@ -30,6 +30,8 @@ Last ned `print.ps1` fra GitHub:
 
 Lagre filen et sted på datamaskinen din (for eksempel på Skrivebordet).
 
+**Viktig etter nedlasting:** Windows blokkerer automatisk filer som er lastet ned fra internett. Fjern blokkeringen ved å høyreklikke på `print.ps1` → **Egenskaper** → huk av **«Fjern blokkering»** (eller «Unblock») nederst → klikk **OK**.
+
 ### Steg 1: Last ned besvarelser fra itslearning
 
 Logg inn på itslearning og gå til oppgaven du vil skrive ut besvarelser fra
@@ -87,14 +89,25 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 
 ## Feilsøking
 
-**Hvis du får feilmelding om "execution policy" når du prøver å kjøre skriptet:**
+**Hvis du får feilmelding om at skriptet "ikke er signert" eller "execution policy":**
 
-Dette betyr at datamaskinen din blokkerer PowerShell-skript av sikkerhetsgrunner. Slik fikser du det:
+Du må gjøre begge stegene under (ingen av dem krever administrator):
+
+**Steg 1 – Fjern blokkeringen av filen** (fordi den er lastet ned fra internett):
+
+Høyreklikk på `print.ps1` → **Egenskaper** → huk av **«Fjern blokkering»** (eller «Unblock») nederst → klikk **OK**.
+
+Alternativt kan du åpne PowerShell i samme mappe og kjøre:
+```powershell
+Unblock-File -Path .\print.ps1
+```
+
+**Steg 2 – Tillat kjøring av lokale skript:**
 
 1. Trykk på Start-knappen og søk etter "PowerShell"
-2. Klikk på "Windows PowerShell" (du trenger IKKE å kjøre som administrator)
-3. Når det åpner seg et vindu med blå bakgrunn, skriv inn følgende og trykk Enter:
-   ```
+2. Klikk på "Windows PowerShell"
+3. Skriv inn følgende og trykk Enter:
+   ```powershell
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
 4. Skriv `J` og trykk Enter når du får spørsmål

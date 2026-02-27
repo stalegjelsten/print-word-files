@@ -99,7 +99,17 @@ PDF-filer skrives ut som de er, uten topptekst eller bunntekst (dette er en tekn
 
 Last ned programmet #link("https://raw.githubusercontent.com/stalegjelsten/print-word-files/main/print.ps1")[*print.ps1*] (høyreklikk og velg "Lagre lenke som..." eller "Save link as...").
 
-Lagre filen et valgfritt sted på datamaskinen din. 
+#block(
+  fill: blue.lighten(79%),
+  inset: 1em,
+  radius: 0.3em,
+)[
+*Viktig etter nedlasting:* Windows blokkerer automatisk filer som er lastet ned fra internett. 
+
+  Du må fjerne denne blokkeringen før du kan kjøre programmet: høyreklikk på `print.ps1` → *Egenskaper* → huk av *«Fjern blokkering»* (eller *«Unblock»*) nederst → klikk *OK*.
+]
+
+
 
 == Steg 1: Last ned besvarelser fra itslearning
 
@@ -158,9 +168,23 @@ Du kan tilpasse programmet ved å åpne `print.ps1` i Notisblokk og endre disse 
 
 = Feilsøking
 
-== Hvis du får feilmelding om "execution policy"
+== Hvis du får feilmelding om at skriptet "ikke er signert" eller "execution policy"
 
-Dette betyr at datamaskinen din blokkerer PowerShell-skript av sikkerhetsgrunner. Slik fikser du det:
+Dette skyldes at Windows blokkerer filer lastet ned fra internett, og/eller at datamaskinen din blokkerer PowerShell-skript av sikkerhetsgrunner. Du må gjøre begge stegene under (ingen av dem krever administrator):
+
+*Steg 1 -- Fjern blokkeringen av filen:*
+
+Høyreklikk på `print.ps1` → *Egenskaper* → huk av *«Fjern blokkering»* (eller *«Unblock»*) nederst → klikk *OK*.
+
+Alternativt kan du åpne PowerShell i samme mappe og kjøre:
+
+```powershell
+Unblock-File -Path .\print.ps1
+```
+
+_Dette må gjøres én gang per datamaskin._
+
+*Steg 2 -- Tillat kjøring av lokale skript:*
 
 + Trykk på Start-knappen og søk etter "PowerShell"
 + Klikk på "Windows PowerShell"

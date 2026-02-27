@@ -21,8 +21,15 @@ $CONFIG_PRINTER = "\\TDCSPRN30\Sikker_UtskriftCS"  # Printernavn
 # 2. Åpne PowerShell, naviger til mappen og skriv: .\print.ps1
 #
 # FØRSTE GANG DU KJØRER SKRIPTET:
-# Hvis du får en feilmelding om "execution policy", åpne PowerShell
-# (trenger IKKE administrator) og kjør:
+# Hvis du får feilmelding om at skriptet "ikke er signert" eller "execution policy",
+# må du gjøre BEGGE disse stegene (trenger IKKE administrator):
+#
+# Steg 1 - Fjern blokkering av filen (fordi den er lastet ned fra internett):
+#    Høyreklikk på print.ps1 → Egenskaper → huk av "Fjern blokkering" nederst → OK
+#    ELLER åpne PowerShell i samme mappe og kjør:
+#    Unblock-File -Path .\print.ps1
+#
+# Steg 2 - Tillat kjøring av lokale skript, åpne PowerShell og kjør:
 #    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 # Svar "J" (Ja) på spørsmålet som kommer opp.
 #
