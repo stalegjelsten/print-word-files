@@ -1052,15 +1052,12 @@ if ($selectedPath -ne $null)
           $processInfo.UseShellExecute = $false
 
           $process = [System.Diagnostics.Process]::Start($processInfo)
-          
-          # Vent på at Adobe Reader starter og sender utskriftsjobben
-          Start-Sleep -Seconds 3
-          
-          # Prøv å lukke Adobe Reader-prosessen
-          try {
-            $process.Kill()
-          } catch {
-            # Prosessen kan allerede være lukket
+
+          # Vent på at Adobe Reader sender utskriftsjobben (maks 30 sekunder)
+          $exited = $process.WaitForExit(30000)
+          if (-not $exited) {
+            # Prosessen ble ikke ferdig innen timeout – tving avslutning
+            try { $process.Kill() } catch { }
           }
 
           Write-Host "OK! $fileCounter av $totalFiles. Skrev ut PDF: $($file.Name) [Mappe: $folderName]"
