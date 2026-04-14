@@ -983,6 +983,9 @@ if ($selectedPath -ne $null)
     $wordApp.ActivePrinter = $CONFIG_PRINTER
   }
 
+  # Hold styr på Adobe Reader-prosessen (lukkes etter alle filer er skrevet ut)
+  $adobeProcess = $null
+
   # Gå gjennom hver fil og skriv den ut
   foreach ($file in $allFiles)
   {
@@ -1051,13 +1054,24 @@ if ($selectedPath -ne $null)
           $processInfo.CreateNoWindow = $true
           $processInfo.UseShellExecute = $false
 
+          # Tell jobber i køen før vi starter utskrift
+          $jobsBefore = @(Get-PrintJob -PrinterName $CONFIG_PRINTER -ErrorAction SilentlyContinue).Count
+
           $process = [System.Diagnostics.Process]::Start($processInfo)
 
-          # Vent på at Adobe Reader sender utskriftsjobben (maks 30 sekunder)
-          $exited = $process.WaitForExit(30000)
-          if (-not $exited) {
-            # Prosessen ble ikke ferdig innen timeout – tving avslutning
-            try { $process.Kill() } catch { }
+          # Vent på at en ny jobb dukker opp i printerkøen og fullføres
+          $timeout = [DateTime]::Now.AddSeconds(60)
+          $jobSeen = $false
+          while ([DateTime]::Now -lt $timeout) {
+            $jobsNow = @(Get-PrintJob -PrinterName $CONFIG_PRINTER -ErrorAction SilentlyContinue).Count
+            if ($jobsNow -gt $jobsBefore) { $jobSeen = $true }
+            if ($jobSeen -and $jobsNow -le $jobsBefore) { break }
+            Start-Sleep -Milliseconds 500
+          }
+
+          # Hold Adobe Reader åpen – lukkes etter siste PDF
+          if ($adobeProcess -eq $null -or $adobeProcess.HasExited) {
+            $adobeProcess = $process
           }
 
           Write-Host "OK! $fileCounter av $totalFiles. Skrev ut PDF: $($file.Name) [Mappe: $folderName]"
@@ -1103,6 +1117,11 @@ if ($selectedPath -ne $null)
         $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason=$errMsg}
       }
     }
+  }
+
+  # Lukk Adobe Reader etter at alle filer er skrevet ut
+  if ($adobeProcess -ne $null -and -not $adobeProcess.HasExited) {
+    try { $adobeProcess.Kill() } catch { }
   }
 
   # Bygg oppsummeringslinjer
