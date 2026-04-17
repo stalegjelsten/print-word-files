@@ -983,9 +983,6 @@ if ($selectedPath -ne $null)
     $wordApp.ActivePrinter = $CONFIG_PRINTER
   }
 
-  # Hold styr på Adobe Reader-prosessen (lukkes etter alle filer er skrevet ut)
-  $adobeProcess = $null
-
   # Gå gjennom hver fil og skriv den ut
   foreach ($file in $allFiles)
   {
@@ -1069,10 +1066,9 @@ if ($selectedPath -ne $null)
             Start-Sleep -Milliseconds 500
           }
 
-          # Hold Adobe Reader åpen – lukkes etter siste PDF
-          if ($adobeProcess -eq $null -or $adobeProcess.HasExited) {
-            $adobeProcess = $process
-          }
+          # Lukk Adobe Reader-prosessen (den lukker seg ikke selv etter /t,
+          # og aksepterer heller ikke /t på nytt mens den kjører)
+          try { $process.Kill() } catch { }
 
           Write-Host "OK! $fileCounter av $totalFiles. Skrev ut PDF: $($file.Name) [Mappe: $folderName]"
           Write-Host "  NB: PDF-filer får ikke automatisk mappenavn i topptekst"
@@ -1117,11 +1113,6 @@ if ($selectedPath -ne $null)
         $failedFiles += @{Name=$file.Name; Folder=$folderName; Reason=$errMsg}
       }
     }
-  }
-
-  # Lukk Adobe Reader etter at alle filer er skrevet ut
-  if ($adobeProcess -ne $null -and -not $adobeProcess.HasExited) {
-    try { $adobeProcess.Kill() } catch { }
   }
 
   # Bygg oppsummeringslinjer
